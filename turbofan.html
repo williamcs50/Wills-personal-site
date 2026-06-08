@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Turbofan Predictive Maintenance — William Opyrchal</title>
+  <meta name="description" content="A dual-head Transformer for jet-engine prognostics. I diagnosed a total model collapse to a data problem, not a model problem, rebuilt the data, and derived a cost-weighted operating point." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://williamopyrchal.com/turbofan.html" />
+  <meta property="og:title" content="Turbofan Predictive Maintenance — Diagnosing a Model Collapse" />
+  <meta property="og:description" content="A dual-head Transformer for jet-engine prognostics. I diagnosed a total model collapse to a data problem, not a model problem, rebuilt the data, and derived a cost-weighted operating point." />
+  <meta property="og:image" content="https://williamopyrchal.com/og-turbofan.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Turbofan Predictive Maintenance — Diagnosing a Model Collapse" />
+  <meta name="twitter:description" content="A dual-head Transformer for jet-engine prognostics. I diagnosed a model collapse to a data problem and rebuilt from there." />
+  <meta name="twitter:image" content="https://williamopyrchal.com/og-turbofan.png" />
+
+  <style>
+    :root {
+      --bg: #16181C;             /* deep near-black (like Apple's iPhone dark pages) */
+      --bg-alt: #1D1F23;
+      --bg-section: #232529;
+      --ink: #F5F5F7;
+      --ink-2: #C7C7CC;
+      --muted: #98989D;
+      --faint: #6E6E73;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.06);
+      --link: #2997FF;           /* Apple system blue, dark-mode variant */
+      --link-hover: #5AB0FF;
+      --accent: #2997FF;
+      --code-bg: #0F1115;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+              "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+    .container-narrow {
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    /* ---------- Nav ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(22, 24, 28, 0.78);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: color 160ms ease;
+    }
+    .nav-back:hover { color: var(--ink); }
+    .nav-back .chev { transform: translateY(-1px); }
+    .nav-brand {
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .nav-spacer { width: 80px; }   /* visual balance */
+
+    /* ---------- Type ---------- */
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      font-weight: 600;
+      font-size: clamp(40px, 6vw, 80px);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+      margin: 0;
+    }
+    h2 {
+      font-weight: 600;
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      color: var(--ink);
+      margin: 0;
+    }
+    h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--link);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .lede {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: 0.004em;
+      line-height: 1.35;
+    }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .hero-inner > * {
+      opacity: 0;
+      transform: translateY(28px);
+      animation: heroIn 1100ms cubic-bezier(.16,.84,.3,1) forwards;
+    }
+    .hero-inner > *:nth-child(1) { animation-delay: 80ms; }
+    .hero-inner > *:nth-child(2) { animation-delay: 220ms; }
+    .hero-inner > *:nth-child(3) { animation-delay: 380ms; }
+    .hero-inner > *:nth-child(4) { animation-delay: 560ms; }
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+
+    .hero h1 { max-width: 20ch; margin-bottom: 22px; }
+    .hero .lede { max-width: 56ch; margin-bottom: 28px; }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .hero-meta strong {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+
+    /* ---------- Sections ---------- */
+    .section { padding: 100px 0; border-bottom: 1px solid var(--line-soft); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+
+    /* ---------- Prose ---------- */
+    .prose { max-width: 680px; }
+    .prose p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 24px;
+      letter-spacing: -0.01em;
+    }
+    .prose p strong { color: var(--ink); font-weight: 600; }
+    .prose p em { color: var(--ink); font-style: italic; }
+    .prose ul {
+      margin: 0 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .prose li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+    .prose li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 12px;
+      width: 8px; height: 1px;
+      background: var(--muted);
+    }
+    .prose code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+
+    /* ---------- Code block ---------- */
+    .code-block {
+      margin: 12px 0 32px;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      overflow-x: auto;
+      letter-spacing: 0;
+    }
+    .code-block .comment { color: var(--faint); }
+    .code-block .keyword { color: #FF6B7A; }
+    .code-block .num { color: #FFA94D; }
+
+    /* ---------- Pull-quote / callout ---------- */
+    .callout {
+      margin: 32px 0;
+      padding: 24px 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-alt);
+      border-radius: 0 12px 12px 0;
+    }
+    .callout p {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .callout .attribution {
+      display: block;
+      margin-top: 14px;
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    /* ---------- Stat row (key findings) ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 32px;
+    }
+    .stat {
+      background: var(--bg);
+      padding: 28px 24px;
+    }
+    .stat-number {
+      font-size: clamp(28px, 3.2vw, 40px);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin: 0 0 6px;
+      font-feature-settings: "tnum";
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Plot (inline SVG diagnostics) ---------- */
+    .plot {
+      margin: 16px 0 32px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 8px 8px 4px;
+      overflow: hidden;
+    }
+    .plot svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      background: var(--code-bg);
+    }
+    .plot-caption {
+      margin: 14px 14px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0;
+      line-height: 1.5;
+    }
+
+    /* ---------- Stack section (dark variant of skills) ---------- */
+    .stack-section { background: var(--bg-alt); padding: 80px 0; border-bottom: 1px solid var(--line-soft); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .stack-meta h2 { font-size: clamp(28px, 3vw, 36px); }
+    .stack-meta p { color: var(--muted); font-size: 16px; margin: 14px 0 0; }
+    .stack-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 36px;
+    }
+    .stack-cat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .stack-list { list-style: none; padding: 0; margin: 0; }
+    .stack-list li {
+      font-size: 15px;
+      color: var(--ink);
+      padding: 7px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Links section ---------- */
+    .links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .link-card {
+      display: block;
+      padding: 24px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .link-card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .link-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0 0 4px;
+    }
+    .link-card-meta {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .link-card .arrow {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* ---------- Prev / Next ---------- */
+    .pager {
+      padding: 64px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .pager-link {
+      display: block;
+      padding: 28px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .pager-link:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .pager-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pager-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0;
+    }
+    .pager-link.next { text-align: right; }
+
+    /* ---------- Footer ---------- */
+    footer {
+      padding: 28px 0 36px;
+      background: var(--bg);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 880px) {
+      .stack-grid { grid-template-columns: 1fr; gap: 32px; }
+      .stack-categories { grid-template-columns: 1fr; gap: 24px; }
+      .stats { grid-template-columns: 1fr; }
+      .links { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .hero { padding: 64px 0 56px; }
+    }
+    @media (max-width: 640px) {
+      .pager { grid-template-columns: 1fr; }
+      .pager-link.next { text-align: left; }
+      h1 { font-size: clamp(34px, 9vw, 48px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .hero-inner > * { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="container">
+      <a class="nav-back" href="index.html"><span class="chev">‹</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-inner">
+        <p class="eyebrow">Case Study · 01</p>
+        <h1>Turbofan Predictive Maintenance.</h1>
+        <p class="lede">
+          A dual-head Transformer that predicts jet engine anomalies and Remaining Useful Life.
+          My first model collapsed completely — so I diagnosed why, rebuilt the data it learned
+          from, and tuned the operating point to the real cost of a missed failure.
+        </p>
+        <div class="hero-meta">
+          <span><strong>Stack:</strong> Python · PyTorch · Gemini · Flask</span>
+          <span><strong>Period:</strong> 2025–2026</span>
+          <span><strong>Status:</strong> v0.2.1 · live dashboard</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTEXT -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Context</p>
+        <div class="prose">
+          <p>
+            The original goal was a NASA-CMAPSS-inspired predictive maintenance pipeline: synthetic
+            sensor data for 500 jet engines, a Transformer model predicting both <strong>anomaly
+            state</strong> and <strong>Remaining Useful Life</strong>, and a live diagnostic
+            dashboard. End-to-end, dual-head, multi-task — the architecture that everyone reaches
+            for in time-series prognostics.
+          </p>
+          <p>
+            The early model didn't work. Both heads collapsed: the anomaly head predicted "normal"
+            on every window, the RUL head predicted the training mean. Standard remedies — focal
+            loss, class weights, joint-loss rebalancing — didn't move the metrics.
+          </p>
+          <p>
+            What started as a modeling project became something more useful: a lesson in
+            telling when a dataset has nothing for a model to learn from — and then rebuilding
+            it so it does. The diagnosis was the hard part. The fix, once I understood the real
+            problem, was deliberate engineering.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE WORK / DIAGNOSTIC STORY -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The diagnostic chain</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Going upstream when results don't match expectations.</h2>
+
+          <p>
+            The first instinct after a model collapse is to tune the loss function. Implement focal
+            loss for the anomaly head, expecting class imbalance to be the culprit. So that's what
+            I did. The first training run produced the same all-zero precision and recall.
+          </p>
+          <p>
+            Rather than tune <code>gamma</code>, I went upstream — to the labels themselves.
+          </p>
+
+          <h3 style="margin-top: 40px;">Bug 1 — labels that never fired</h3>
+          <p>
+            The simulator labeled a window as anomalous only if sensor values crossed fixed
+            thresholds:
+          </p>
+
+          <pre class="code-block"><span class="comment"># Original labeling logic</span>
+anomaly = <span class="num">1</span> <span class="keyword">if</span> vibration > <span class="num">0.05</span> <span class="keyword">or</span> T50 > <span class="num">1420</span> <span class="keyword">else</span> <span class="num">0</span></pre>
+
+          <p>
+            But the degradation parameters in the same simulator produced vibration baselines
+            around <code>0.010–0.015</code> and worst-case increases of <code>~0.003</code> — never
+            reaching <code>0.05</code>. T50 baseline was <code>~1400</code> with <code>+1°C</code>
+            degradation at most — never reaching <code>1420</code>. Of five failure modes, only
+            Foreign Object Damage ever produced positive labels (a single abrupt spike). Every
+            other mode produced <em>zero positives across its entire degradation window.</em>
+          </p>
+          <p>
+            Effective class imbalance: 500:1, not the 100:1 I'd designed around.
+          </p>
+          <p>
+            Fixed it with the CMAPSS-convention labeling — anomaly defined by RUL proximity, not
+            arbitrary sensor thresholds:
+          </p>
+
+          <pre class="code-block"><span class="comment"># Fixed</span>
+anomaly = <span class="num">1</span> <span class="keyword">if</span> rul <= <span class="num">30</span> <span class="keyword">else</span> <span class="num">0</span></pre>
+
+          <p>
+            Class weights recomputed to a real <strong>20% positive base rate</strong>. Retrained.
+            The model still collapsed.
+          </p>
+
+          <h3 style="margin-top: 40px;">Bug 2 — signal below the noise floor</h3>
+          <p>
+            Accuracy of <code>0.7954</code> on a 20% positive base rate is the model predicting
+            "normal" on every window. The confusion matrix showed <em>zero true positives</em>
+            across 14,662 test windows.
+          </p>
+
+          <div class="plot">
+            <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg"
+                 role="img" aria-label="Confusion matrix showing the model predicting normal on every test window. Zero true positives, zero false positives, all anomaly windows misclassified as normal.">
+              <rect x="0" y="0" width="800" height="360" fill="#0F1115"/>
+
+              <!-- Title -->
+              <text x="400" y="40" fill="#C7C7CC" font-family="-apple-system, sans-serif" font-size="14" font-weight="600" text-anchor="middle">Confusion matrix · 14,662 test windows</text>
+
+              <!-- Matrix grid centered -->
+              <!-- Predicted axis label -->
+              <text x="400" y="320" fill="#86868B" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle" letter-spacing="0.06em">PREDICTED</text>
+              <text x="300" y="290" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">Normal</text>
+              <text x="500" y="290" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">Anomaly</text>
+
+              <!-- Actual axis label (rotated) -->
+              <text x="160" y="170" fill="#86868B" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle" letter-spacing="0.06em" transform="rotate(-90 160 170)">ACTUAL</text>
+              <text x="195" y="120" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">Normal</text>
+              <text x="195" y="220" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">Anomaly</text>
+
+              <!-- Top-left: True Negative (large value) -->
+              <rect x="210" y="90" width="180" height="80" fill="#2997FF" fill-opacity="0.32" stroke="#FFFFFF" stroke-opacity="0.10"/>
+              <text x="300" y="130" fill="#F5F5F7" font-family="-apple-system, sans-serif" font-size="22" font-weight="600" text-anchor="middle">11,664</text>
+              <text x="300" y="152" fill="#86868B" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">true negatives</text>
+
+              <!-- Top-right: False Positive (zero) -->
+              <rect x="410" y="90" width="180" height="80" fill="#2997FF" fill-opacity="0.02" stroke="#FFFFFF" stroke-opacity="0.10"/>
+              <text x="500" y="130" fill="#6E6E73" font-family="-apple-system, sans-serif" font-size="22" font-weight="600" text-anchor="middle">0</text>
+              <text x="500" y="152" fill="#86868B" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">false positives</text>
+
+              <!-- Bottom-left: False Negative (all anomalies misclassified) -->
+              <rect x="210" y="190" width="180" height="80" fill="#FF6B7A" fill-opacity="0.22" stroke="#FFFFFF" stroke-opacity="0.10"/>
+              <text x="300" y="230" fill="#F5F5F7" font-family="-apple-system, sans-serif" font-size="22" font-weight="600" text-anchor="middle">2,998</text>
+              <text x="300" y="252" fill="#FF6B7A" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">false negatives</text>
+
+              <!-- Bottom-right: True Positive (zero) -->
+              <rect x="410" y="190" width="180" height="80" fill="#2997FF" fill-opacity="0.02" stroke="#FFFFFF" stroke-opacity="0.10"/>
+              <text x="500" y="230" fill="#6E6E73" font-family="-apple-system, sans-serif" font-size="22" font-weight="600" text-anchor="middle">0</text>
+              <text x="500" y="252" fill="#86868B" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">true positives</text>
+
+              <!-- Right side: metric breakdown -->
+              <text x="640" y="100" fill="#86868B" font-family="ui-monospace, monospace" font-size="10" letter-spacing="0.06em">METRIC</text>
+              <line x1="630" y1="108" x2="780" y2="108" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1"/>
+
+              <text x="640" y="130" fill="#C7C7CC" font-family="ui-monospace, monospace" font-size="11">Accuracy</text>
+              <text x="780" y="130" fill="#F5F5F7" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">0.7954</text>
+
+              <text x="640" y="152" fill="#C7C7CC" font-family="ui-monospace, monospace" font-size="11">Precision</text>
+              <text x="780" y="152" fill="#FF6B7A" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">0.0000</text>
+
+              <text x="640" y="174" fill="#C7C7CC" font-family="ui-monospace, monospace" font-size="11">Recall</text>
+              <text x="780" y="174" fill="#FF6B7A" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">0.0000</text>
+
+              <text x="640" y="196" fill="#C7C7CC" font-family="ui-monospace, monospace" font-size="11">F1</text>
+              <text x="780" y="196" fill="#FF6B7A" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">0.0000</text>
+            </svg>
+            <p class="plot-caption">
+              The model classified every anomaly window as normal. Accuracy looks reasonable
+              only because the class imbalance carries it — predict "normal" always and you'll
+              be right 80% of the time on a 20% positive base rate.
+            </p>
+          </div>
+
+          <p>
+            I built a diagnostic script — <code>scripts/diagnose_sensor_signal.py</code> — to plot
+            raw and scaled sensor traces for a single engine with the RUL ≤ 30 region marked.
+            The result:
+          </p>
+
+          <div class="plot">
+            <svg viewBox="0 0 800 480" xmlns="http://www.w3.org/2000/svg"
+                 role="img" aria-label="Diagnostic plot showing vibration and T50 sensor traces with the RUL ≤ 30 region highlighted. Degradation is indistinguishable from baseline noise.">
+              <!-- Background -->
+              <rect x="0" y="0" width="800" height="480" fill="#0F1115"/>
+
+              <!-- RUL ≤ 30 region shading -->
+              <rect x="540.8" y="40" width="199.2" height="360" fill="#2997FF" opacity="0.10"/>
+              <line x1="540.8" y1="40" x2="540.8" y2="400" stroke="#2997FF" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+
+              <!-- Panel separator -->
+              <line x1="60" y1="220" x2="740" y2="220" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1"/>
+
+              <!-- Plot 1: Vibration -->
+              <text x="60" y="55" fill="#C7C7CC" font-family="-apple-system, sans-serif" font-size="13" font-weight="600">Vibration</text>
+              <text x="740" y="55" fill="#86868B" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">baseline 0.012 · noise ±0.0035</text>
+
+              <!-- Y axis ticks vibration -->
+              <line x1="60" y1="60" x2="60" y2="200" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1"/>
+              <text x="52" y="64" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="end">0.025</text>
+              <text x="52" y="134" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="end">0.012</text>
+              <text x="52" y="204" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="end">0.000</text>
+
+              <!-- Vibration trace -->
+              <path d="M 60.0,135.6 L 66.9,136.2 L 73.7,135.0 L 80.6,119.0 L 87.5,135.3 L 94.3,162.1 L 101.2,126.3 L 108.1,138.0 L 114.9,137.1 L 121.8,130.5 L 128.7,128.2 L 135.6,110.0 L 142.4,119.9 L 149.3,130.6 L 156.2,147.3 L 163.0,152.7 L 169.9,128.0 L 176.8,107.1 L 183.6,132.0 L 190.5,134.9 L 197.4,122.4 L 204.2,161.3 L 211.1,138.9 L 218.0,123.2 L 224.8,115.7 L 231.7,137.5 L 238.6,125.4 L 245.5,127.9 L 252.3,117.5 L 259.2,154.6 L 266.1,121.7 L 272.9,162.5 L 279.8,184.2 L 286.7,144.7 L 293.5,150.7 L 300.4,115.6 L 307.3,119.8 L 314.1,156.7 L 321.0,116.2 L 327.9,152.4 L 334.7,134.5 L 341.6,138.6 L 348.5,130.6 L 355.4,116.8 L 362.2,120.3 L 369.1,125.9 L 376.0,120.1 L 382.8,123.4 L 389.7,145.1 L 396.6,146.9 L 403.4,142.0 L 410.3,123.0 L 417.2,137.7 L 424.0,87.0 L 430.9,148.9 L 437.8,154.3 L 444.6,117.7 L 451.5,104.9 L 458.4,122.9 L 465.3,116.4 L 472.1,104.8 L 479.0,134.6 L 485.9,160.7 L 492.7,143.2 L 499.6,114.1 L 506.5,161.1 L 513.3,132.1 L 520.2,127.8 L 527.1,139.0 L 533.9,118.6 L 540.8,121.4 L 547.7,86.9 L 554.5,119.9 L 561.4,143.6 L 568.3,142.3 L 575.2,147.2 L 582.0,111.9 L 588.9,141.3 L 595.8,131.2 L 602.6,114.8 L 609.5,143.2 L 616.4,134.4 L 623.2,164.4 L 630.1,149.2 L 637.0,138.7 L 643.8,119.1 L 650.7,103.4 L 657.6,126.8 L 664.4,121.0 L 671.3,122.4 L 678.2,104.1 L 685.1,107.5 L 691.9,119.2 L 698.8,144.0 L 705.7,106.1 L 712.5,116.0 L 719.4,99.0 L 726.3,123.3 L 733.1,84.1 L 740.0,129.0"
+                    fill="none" stroke="#5AB0FF" stroke-width="1.2"/>
+
+              <!-- Plot 2: T50 -->
+              <text x="60" y="255" fill="#C7C7CC" font-family="-apple-system, sans-serif" font-size="13" font-weight="600">T50 (turbine exit temp)</text>
+              <text x="740" y="255" fill="#86868B" font-family="ui-monospace, monospace" font-size="11" text-anchor="end">baseline 1400°C · noise ±4°C</text>
+
+              <line x1="60" y1="260" x2="60" y2="400" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1"/>
+              <text x="52" y="264" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="end">1415</text>
+              <text x="52" y="334" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="end">1400</text>
+              <text x="52" y="404" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="end">1385</text>
+
+              <!-- T50 trace -->
+              <path d="M 60.0,280.3 L 66.9,307.9 L 73.7,319.6 L 80.6,331.1 L 87.5,312.8 L 94.3,283.4 L 101.2,294.8 L 108.1,297.1 L 114.9,354.3 L 121.8,296.7 L 128.7,299.6 L 135.6,320.3 L 142.4,321.7 L 149.3,310.0 L 156.2,277.8 L 163.0,329.7 L 169.9,318.0 L 176.8,284.6 L 183.6,318.3 L 190.5,316.8 L 197.4,308.2 L 204.2,333.2 L 211.1,305.9 L 218.0,332.6 L 224.8,293.5 L 231.7,309.9 L 238.6,267.4 L 245.5,304.8 L 252.3,284.5 L 259.2,334.3 L 266.1,312.3 L 272.9,304.0 L 279.8,277.4 L 286.7,341.4 L 293.5,291.5 L 300.4,299.0 L 307.3,281.4 L 314.1,296.7 L 321.0,309.0 L 327.9,319.7 L 334.7,333.3 L 341.6,306.4 L 348.5,313.6 L 355.4,272.3 L 362.2,321.4 L 369.1,304.0 L 376.0,339.3 L 382.8,317.4 L 389.7,305.1 L 396.6,294.6 L 403.4,283.0 L 410.3,310.8 L 417.2,330.9 L 424.0,301.5 L 430.9,300.3 L 437.8,300.8 L 444.6,323.1 L 451.5,288.8 L 458.4,308.4 L 465.3,296.9 L 472.1,286.2 L 479.0,298.6 L 485.9,304.7 L 492.7,269.8 L 499.6,305.5 L 506.5,315.5 L 513.3,307.9 L 520.2,282.3 L 527.1,307.8 L 533.9,300.3 L 540.8,287.7 L 547.7,319.6 L 554.5,342.2 L 561.4,304.4 L 568.3,305.7 L 575.2,321.3 L 582.0,293.7 L 588.9,298.7 L 595.8,328.6 L 602.6,300.3 L 609.5,313.7 L 616.4,337.7 L 623.2,301.5 L 630.1,310.8 L 637.0,323.9 L 643.8,300.2 L 650.7,300.9 L 657.6,320.8 L 664.4,302.5 L 671.3,291.1 L 678.2,323.3 L 685.1,302.9 L 691.9,309.9 L 698.8,267.7 L 705.7,344.8 L 712.5,297.0 L 719.4,315.7 L 726.3,311.9 L 733.1,274.5 L 740.0,310.2"
+                    fill="none" stroke="#5AB0FF" stroke-width="1.2"/>
+
+              <!-- X axis ticks -->
+              <line x1="60" y1="400" x2="740" y2="400" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1"/>
+              <text x="60" y="424" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">0</text>
+              <text x="400" y="424" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">cycle</text>
+              <text x="540.8" y="424" fill="#2997FF" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">RUL=30</text>
+              <text x="740" y="424" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">EOL</text>
+
+              <!-- Annotation -->
+              <text x="640" y="450" fill="#2997FF" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">
+                ← anomaly region (no visible signal)
+              </text>
+            </svg>
+            <p class="plot-caption">
+              Sensor traces for one engine across its full lifetime. The shaded region marks
+              the anomaly window (RUL ≤ 30) where the model is supposed to detect degradation.
+              Inside that window, neither sensor shows a signal distinguishable from baseline noise.
+            </p>
+          </div>
+
+          <p>
+            The degradation signal was below the noise floor. A <code>vib_increase</code> of
+            <code>0.002</code> on a baseline of <code>0.010–0.015</code> with comparable noise.
+            T50 and P30 carried <em>zero signal</em> for failure modes like "high-pressure turbine
+            wear" — only vibration was affected, not the other physically related sensors.
+            The model literally could not distinguish anomaly windows from normal windows in
+            feature space.
+          </p>
+
+          <div class="callout">
+            <p>
+              No loss function can save a dataset without learnable signal. v0.1's anomaly head
+              collapse was inevitable from day one — the simulator wasn't producing learnable
+              structure inside the anomaly windows.
+            </p>
+          </div>
+
+          <h3 style="margin-top: 40px;">What the diagnostic proved</h3>
+          <p>
+            Three things, in order:
+          </p>
+          <ul>
+            <li>Loss-function tuning was the wrong tool — the issue was upstream of the model.</li>
+            <li>Cheap baseline checks (logistic regression on raw features) should precede expensive Transformer training. If a linear model can't learn the signal, the Transformer won't either.</li>
+            <li>The simulator itself is a piece of engineering — not a fixed dataset. Sensor degradation magnitudes, multi-sensor signatures per failure mode, and SNR targets are design decisions, not parameters to crank.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE FIX -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The fix</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Engineering learnable signal, on purpose.</h2>
+          <p>
+            The diagnosis pointed at the data, so I rebuilt the generator. The new design
+            (<code>generate_sensors_v2.py</code>) doesn't just crank degradation magnitudes —
+            it targets a specific signal-to-noise ratio across the degradation window
+            (<code>SNR_EOL = 4.0</code>) and spreads each failure mode across
+            <em>multiple physically plausible sensors</em>. High-pressure turbine wear now shows
+            in T50 and P30 together, not vibration alone, so the model has cross-channel structure
+            to learn from.
+          </p>
+          <p>
+            I also replaced the threshold-based labels that never fired with the CMAPSS convention —
+            anomaly defined by RUL proximity (<code>rul ≤ 30</code>) — swapped weighted
+            cross-entropy for focal loss (<code>gamma = 2</code>), and raised the RUL joint-loss
+            weight from <code>0.001</code> to <code>0.1</code> so the regression head actually
+            contributed to the objective.
+          </p>
+          <p>
+            Then the discipline the diagnostic taught me: <strong>before spending Transformer
+            compute, I run a learnability gate.</strong> A cheap baseline checks per-mode recall on
+            the regenerated data; every failure mode has to clear the bar before training starts.
+            Know whether the thing can work before betting compute on it.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Results · test set</p>
+        <h2 style="max-width: 22ch; margin-bottom: 16px;">From total collapse to a working model.</h2>
+        <p class="lede" style="max-width: 60ch; margin-bottom: 36px; color: var(--ink-2);">
+          v0.1 predicted "normal" on every window — precision and recall both 0.00. The rebuilt
+          data and model (v0.2.0) learns all five failure modes. v0.2.1 then moves the operating
+          point to the real cost of a miss.
+        </p>
+        <div class="stats">
+          <div class="stat">
+            <p class="stat-number">0.9957</p>
+            <p class="stat-label">Anomaly recall at the cost-optimal threshold (v0.2.1) — up from 0.00 in v0.1.</p>
+          </div>
+          <div class="stat">
+            <p class="stat-number">13</p>
+            <p class="stat-label">Missed failures on the test set, down from 586 at the default threshold.</p>
+          </div>
+          <div class="stat">
+            <p class="stat-number">−78%</p>
+            <p class="stat-label">Total operating cost (50·FN + FP) versus the default threshold.</p>
+          </div>
+        </div>
+        <p class="prose" style="max-width: 680px; color: var(--muted); font-size: 15px;">
+          RUL regression RMSE: 8.92 cycles (v0.1 collapsed to a near-constant mean at 41.72).
+          The precision-recall curve, confusion matrix, and RUL scatter are live on the dashboard.
+        </p>
+      </div>
+    </section>
+
+    <!-- THE COST DECISION -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">v0.2.1 — the operating point</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Optimizing for the cost of being wrong.</h2>
+          <p>
+            A working model raised a sharper question: where do you set the decision threshold?
+            v0.2.0 defaulted to <code>argmax</code> (threshold 0.50), which optimizes balanced
+            accuracy. For jet engines that's the wrong objective — a missed failure and a false
+            alarm are not equally bad.
+          </p>
+          <p>
+            A missed failure can mean an in-flight engine event: aircraft on ground, secondary
+            damage, lives. A false alarm means an unnecessary borescope inspection. Conservatively,
+            a miss costs on the order of <strong>50× a false alarm</strong>. So I made that ratio
+            explicit and swept the validation set for the threshold that minimizes expected cost
+            (<code>50·FN + FP</code>).
+          </p>
+          <div class="callout">
+            <p>
+              The cost-minimizing operating point was <code>t* = 0.22</code>, not 0.50. Moving
+              there dropped missed failures from 586 to 13 — a 0.4% miss rate — at the deliberate
+              cost of lower precision. Under this cost structure, that trade is correct.
+            </p>
+          </div>
+          <p>
+            The threshold was chosen on validation and evaluated once on the held-out test set —
+            no leakage. The full derivation, including the neighbor check that confirmed
+            <code>t* = 0.22</code> sits in a stable cost basin, is in the pull request that shipped
+            v0.2.1.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section class="stack-section">
+      <div class="container">
+        <div class="stack-grid">
+          <div class="stack-meta">
+            <p class="section-eyebrow" style="margin-bottom: 14px;">Stack</p>
+            <h2>What's under the hood.</h2>
+            <p>
+              3-layer Transformer encoder, 4 attention heads, 128-dim hidden. Sliding window of
+              50 timesteps × 5 sensor channels. Sinusoidal positional encoding, global average
+              pooling, dual-head output (anomaly classification + RUL regression). Focal loss on
+              the classifier; MSE on the regressor. A retrieval-augmented Gemini layer turns
+              predictions into human-readable failure-mode hypotheses.
+            </p>
+          </div>
+          <div class="stack-categories">
+            <div>
+              <p class="stack-cat-label">Model</p>
+              <ul class="stack-list">
+                <li>PyTorch</li>
+                <li>Transformer encoder (3 layers, 4 heads)</li>
+                <li>Focal loss · dual-head · RUL clipping</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Data &amp; pipeline</p>
+              <ul class="stack-list">
+                <li>SNR-scaled synthetic sim (v2)</li>
+                <li>50 engines · 1000 cycles · 5 channels</li>
+                <li>Engine-level split · learnability gate</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Interpretation</p>
+              <ul class="stack-list">
+                <li>RAG-augmented Google Gemini</li>
+                <li>Prompt-engineered structured JSON</li>
+                <li>Failure-mode hypotheses from logs</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Serving</p>
+              <ul class="stack-list">
+                <li>Flask inference API</li>
+                <li>Live diagnostics dashboard</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LINKS / ARTIFACTS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Artifacts</p>
+        <h2 style="max-width: 18ch;">The work, in public.</h2>
+        <div class="links">
+          <a class="link-card" href="https://github.com/williamcs50/turbofan-predictive-maintenance" target="_blank" rel="noopener">
+            <p class="link-card-label">Code</p>
+            <p class="link-card-title">GitHub repository</p>
+            <p class="link-card-meta">Source, PRs, tagged releases through v0.2.1</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://williamcs50.github.io/turbofan-predictive-maintenance/" target="_blank" rel="noopener">
+            <p class="link-card-label">Demo</p>
+            <p class="link-card-title">Live diagnostics dashboard</p>
+            <p class="link-card-meta">Real test metrics — PR curve, confusion matrix, RUL scatter</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/turbofan-predictive-maintenance/blob/main/docs/v0.2-project-log.md" target="_blank" rel="noopener">
+            <p class="link-card-label">Writeup</p>
+            <p class="link-card-title">Project log</p>
+            <p class="link-card-meta">The diagnostic chain and decisions, in narrative form</p>
+            <span class="arrow">›</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREV / NEXT -->
+    <div class="container">
+      <nav class="pager">
+        <span></span>
+        <a class="pager-link next" href="askmickey.html">
+          <p class="pager-label">Next case study ›</p>
+          <p class="pager-title">AskMickey</p>
+        </a>
+      </nav>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>© 2026 William Opyrchal</span>
+      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+    </div>
+  </footer>
+
+  <!--
+  ============================================================================
+  TURBOFAN CASE STUDY — TEMPLATE NOTES
+  ============================================================================
+
+  This is the canonical project-page template. AskMickey and Weather will use
+  the same skeleton with different content.
+
+  SECTION ORDER (use for all project pages):
+  1. Hero — eyebrow / title / lede / meta strip (stack · period · status)
+  2. Context — why this project exists, what the original goal was
+  3. The work — narrative deep-dive (where most variation in length lives)
+  4. Key findings — 3 stats in a horizontal row (skip if no real numbers)
+  5. What's next / lessons — forward-looking, plain language
+  6. Stack — technical detail in a 2x2 or 2x3 categorical grid
+  7. Artifacts — links to code, demo, writeup (3-card row)
+  8. Prev / Next pager
+
+  CONTENT FOR WILL TO VERIFY:
+  - The numbers in "Key findings" (500:1, 14,662, ~0.003) come from the
+    diagnostic writeup. Confirm.
+  - "vib_increase 0.002 on baseline 0.010-0.015" + noise estimate ~0.005 —
+    confirm noise floor number against actual data.
+  - The plot placeholder needs a real screenshot from
+    scripts/diagnose_sensor_signal.py output.
+  - All three artifact links are placeholders.
+  - The narrative leans on the diagnostic writeup directly. Read it through
+    in Will's voice — replace any phrasing that sounds like me, not him.
+  -->
+</body>
+</html>

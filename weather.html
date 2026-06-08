@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Forecasting: Physics vs. ML — William Opyrchal</title>
+  <meta name="description" content="A live evaluation system comparing physics-based and machine-learning weather forecasts — model consensus, confidence, disagreement alerts, and a rolling accuracy scoreboard." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://williamopyrchal.com/weather.html" />
+  <meta property="og:title" content="Weather Forecasting: Physics vs. ML" />
+  <meta property="og:description" content="A live evaluation system comparing physics-based and machine-learning weather forecasts — disagreement alerts and a rolling accuracy scoreboard." />
+  <meta property="og:image" content="https://williamopyrchal.com/og-weather.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Weather Forecasting: Physics vs. ML" />
+  <meta name="twitter:description" content="A live evaluation system comparing physics-based and machine-learning weather forecasts." />
+  <meta name="twitter:image" content="https://williamopyrchal.com/og-weather.png" />
+
+  <style>
+    :root {
+      --bg: #16181C;
+      --bg-alt: #1D1F23;
+      --bg-section: #232529;
+      --ink: #F5F5F7;
+      --ink-2: #C7C7CC;
+      --muted: #98989D;
+      --faint: #6E6E73;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.06);
+      --link: #2997FF;
+      --link-hover: #5AB0FF;
+      --accent: #2997FF;
+      --code-bg: #0F1115;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+              "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+    .container-narrow {
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(22, 24, 28, 0.78);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: color 160ms ease;
+    }
+    .nav-back:hover { color: var(--ink); }
+    .nav-back .chev { transform: translateY(-1px); }
+    .nav-brand {
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .nav-spacer { width: 80px; }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      font-weight: 600;
+      font-size: clamp(40px, 6vw, 80px);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+      margin: 0;
+    }
+    h2 {
+      font-weight: 600;
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      color: var(--ink);
+      margin: 0;
+    }
+    h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--link);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+    .lede {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: 0.004em;
+      line-height: 1.35;
+    }
+
+    .hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .hero-inner > * {
+      opacity: 0;
+      transform: translateY(28px);
+      animation: heroIn 1100ms cubic-bezier(.16,.84,.3,1) forwards;
+    }
+    .hero-inner > *:nth-child(1) { animation-delay: 80ms; }
+    .hero-inner > *:nth-child(2) { animation-delay: 220ms; }
+    .hero-inner > *:nth-child(3) { animation-delay: 380ms; }
+    .hero-inner > *:nth-child(4) { animation-delay: 560ms; }
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+
+    .hero h1 { max-width: 18ch; margin-bottom: 22px; }
+    .hero .lede { max-width: 56ch; margin-bottom: 28px; }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .hero-meta strong { color: var(--ink-2); font-weight: 600; }
+
+    .section { padding: 100px 0; border-bottom: 1px solid var(--line-soft); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+
+    .prose { max-width: 680px; }
+    .prose p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 24px;
+      letter-spacing: -0.01em;
+    }
+    .prose p strong { color: var(--ink); font-weight: 600; }
+    .prose p em { color: var(--ink); font-style: italic; }
+    .prose ul { margin: 0 0 24px; padding: 0; list-style: none; }
+    .prose li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+    .prose li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 12px;
+      width: 8px; height: 1px;
+      background: var(--muted);
+    }
+    .prose code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+
+    /* Comparison table for the two forecast sources */
+    .compare {
+      margin: 16px 0 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .compare-cell {
+      background: var(--bg);
+      padding: 28px 24px;
+    }
+    .compare-cell h4 {
+      margin: 0 0 14px;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+    }
+    .compare-cell .meta {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      margin: 0 0 14px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .compare-cell p {
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--ink-2);
+      margin: 0;
+    }
+
+    /* Wide figure for screenshots — capped so the asset never upscales */
+    .figure-wide {
+      margin: 48px auto 0;
+      max-width: 560px;     /* keeps the screenshot near its native size */
+    }
+    .figure {
+      margin: 0;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 8px;
+      overflow: hidden;
+    }
+    .figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+    }
+    .figure figcaption {
+      padding: 18px 22px 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+    }
+
+    /* Accuracy finding — the headline numbers from the scoreboard */
+    .finding-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .finding {
+      background: var(--bg);
+      padding: 32px 28px;
+    }
+    .finding-pending { background: var(--bg-alt); }
+    .finding-source {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+    .finding-pending .finding-source { color: var(--faint); }
+    .finding-number {
+      font-size: clamp(36px, 4.2vw, 56px);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin: 0 0 10px;
+      line-height: 1;
+      font-feature-settings: "tnum";
+    }
+    .finding-pending .finding-number { color: var(--muted); }
+    .finding-detail {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    @media (max-width: 880px) {
+      .finding-stats { grid-template-columns: 1fr; }
+    }
+
+    .callout {
+      margin: 32px 0;
+      padding: 24px 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-alt);
+      border-radius: 0 12px 12px 0;
+    }
+    .callout p {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+
+    /* Stack */
+    .stack-section { background: var(--bg-alt); padding: 80px 0; border-bottom: 1px solid var(--line-soft); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .stack-meta h2 { font-size: clamp(28px, 3vw, 36px); }
+    .stack-meta p { color: var(--muted); font-size: 16px; margin: 14px 0 0; }
+    .stack-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 36px;
+    }
+    .stack-cat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .stack-list { list-style: none; padding: 0; margin: 0; }
+    .stack-list li {
+      font-size: 15px;
+      color: var(--ink);
+      padding: 7px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* Links */
+    .links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .link-card {
+      display: block;
+      padding: 24px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .link-card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .link-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0 0 4px;
+    }
+    .link-card-meta { font-size: 13px; color: var(--muted); margin: 0; }
+    .link-card .arrow {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* Pager */
+    .pager {
+      padding: 64px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .pager-link {
+      display: block;
+      padding: 28px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .pager-link:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .pager-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pager-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0;
+    }
+    .pager-link.next { text-align: right; }
+
+    footer {
+      padding: 28px 0 36px;
+      background: var(--bg);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    @media (max-width: 880px) {
+      .stack-grid { grid-template-columns: 1fr; gap: 32px; }
+      .stack-categories { grid-template-columns: 1fr; gap: 24px; }
+      .compare { grid-template-columns: 1fr; }
+      .links { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .hero { padding: 64px 0 56px; }
+    }
+    @media (max-width: 640px) {
+      .pager { grid-template-columns: 1fr; }
+      .pager-link.next { text-align: left; }
+      h1 { font-size: clamp(34px, 9vw, 48px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .hero-inner > * { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="container">
+      <a class="nav-back" href="index.html"><span class="chev">‹</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-inner">
+        <p class="eyebrow">Case Study · 03</p>
+        <h1>Is ML actually beating physics at weather?</h1>
+        <p class="lede">
+          A live evaluation system comparing the National Weather Service's physics-based
+          forecasts against ECMWF's AIFS machine-learning model — with disagreement alerts
+          and a running 30-day accuracy scoreboard.
+        </p>
+        <div class="hero-meta">
+          <span><strong>Stack:</strong> JavaScript · NWS · ECMWF AIFS · Open-Meteo</span>
+          <span><strong>Period:</strong> 2026</span>
+          <span><strong>Status:</strong> Live demo</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTEXT -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Context</p>
+        <div class="prose">
+          <p>
+            Weather forecasting just changed. For the first time, a machine-learning model — ECMWF's
+            <em>Artificial Intelligence Forecasting System</em>, or AIFS — produces operational
+            forecasts that match or beat the physics-based numerical models the field has relied
+            on for decades.
+          </p>
+          <p>
+            That's a substantial claim. The interesting question isn't whether to believe it —
+            it's <em>how to check.</em> Not on a research benchmark, but on real forecasts for
+            real locations, day after day.
+          </p>
+          <p>
+            This project is an evaluation system: same location, two forecast sources, displayed
+            side by side, with the divergences flagged automatically and the accuracy of each
+            model tracked against ground truth over time.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE WORK -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The system</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Two forecasts. One scoreboard.</h2>
+
+          <p>
+            The app pulls forecasts from two sources for a user-selected location and renders
+            them on a shared set of axes — same horizon, same units, same time ranges. Then it
+            does three things a side-by-side viewer alone wouldn't:
+          </p>
+
+          <h3 style="margin-top: 36px;">1. A consensus view with confidence bands</h3>
+          <p>
+            Each model's forecast carries its own uncertainty. NWS shows a steady widening of
+            confidence as the horizon extends; AIFS shows a sharper "cliff" at around day 3
+            where its certainty drops off. Both bands rendered together — the user sees not
+            just the predictions but how much each model trusts itself.
+          </p>
+
+          <h3 style="margin-top: 36px;">2. Disagreement alerts</h3>
+          <p>
+            When the two models predict materially different outcomes for the same day — say,
+            <code>NWS 89°F vs AIFS 82°F</code> — the system surfaces the divergence as an alert
+            with the magnitude. These are the cases that matter: agreement is uninteresting,
+            disagreement is where one of the models is about to be wrong.
+          </p>
+
+          <h3 style="margin-top: 36px;">3. A running accuracy scoreboard</h3>
+          <p>
+            For each location a user searches, the system backfills both models' next-day
+            forecasts from public historic archives and scores them against the observed daily
+            high — live, on demand, against a <code>±2°F</code> threshold over a 30-day window.
+            The scoreboard isn't a fixed result; it recomputes per location every time. A
+            representative snapshot for one city:
+          </p>
+        </div>
+      </div>
+
+      <!-- The actual finding, surfaced as a stat row -->
+      <div class="container" style="margin-top: 24px;">
+        <div class="finding-stats">
+          <div class="finding">
+            <p class="finding-source">NWS · Physics</p>
+            <p class="finding-number">10%</p>
+            <p class="finding-detail">within ±2°F · 20 days scored</p>
+          </div>
+          <div class="finding">
+            <p class="finding-source">AIFS · ML</p>
+            <p class="finding-number">64%</p>
+            <p class="finding-detail">within ±2°F · 11 days scored</p>
+          </div>
+          <div class="finding finding-pending">
+            <p class="finding-source">DeepMind · WeatherNext</p>
+            <p class="finding-number">—</p>
+            <p class="finding-detail">awaiting API access</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="container-narrow" style="margin-top: 40px;">
+        <div class="prose">
+          <p>
+            These are early numbers on a small per-location sample, and the scoring methodology
+            is still being hardened — see the writeup for the open questions. The point of the
+            scoreboard isn't the headline percentage; it's that the comparison is measurable at
+            all, on real forecasts for real places, in a way anyone can rerun from public data.
+            That's what the project was built to make possible.
+          </p>
+        </div>
+      </div>
+
+      <!-- Screenshot of the full UI -->
+      <div class="figure-wide container">
+        <figure class="figure">
+          <img src="weather-comparison.png"
+               alt="The NWS vs AIFS Weather Forecast app showing model consensus chart, confidence bands, four disagreement alerts, and a 30-day accuracy scoreboard."
+               loading="lazy" />
+          <figcaption>
+            The full evaluation view for a single location — consensus, confidence bands,
+            flagged disagreements, and the running accuracy scoreboard. DeepMind WeatherNext
+            is wired in but currently pending API access.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- WORKFLOW NOTE — THE REAL STORY -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Workflow</p>
+        <h2 style="margin-bottom: 28px;">Build fast. Verify slowly.</h2>
+        <div class="prose">
+          <p>
+            This project was a deliberate experiment in a different AI-assisted workflow than
+            the design-first approach I used on AskMickey. The goal: see how fast I could ship a
+            working evaluation system using AI tools heavily for code generation — and what
+            discipline I'd need to keep the result trustworthy.
+          </p>
+
+          <p>
+            The answer to the second question turned out to matter more than the first. Producing
+            code quickly with an AI assistant is easy. <strong>Knowing whether the code does
+            what you asked it to</strong> is the engineering work — and on an evaluation system,
+            that work compounds: every claim the app makes about model accuracy has to be
+            traceable to data you can defend.
+          </p>
+
+          <div class="callout">
+            <p>
+              The discipline wasn't in the writing. It was in the verification — checking each
+              piece against the source data, the actual API responses, and the rendered output
+              before trusting it.
+            </p>
+          </div>
+
+          <p>
+            Concretely, that meant:
+          </p>
+          <ul>
+            <li>API responses inspected directly against documentation — never trusted from AI-generated handler code alone.</li>
+            <li>Forecast values cross-checked against the official NWS and ECMWF outputs before render.</li>
+            <li>Unit and timezone conversions tested with edge cases — the single largest source of silent bugs in any weather application.</li>
+            <li>Accuracy scoring methodology validated against a small hand-checked sample before backfilling at scale.</li>
+            <li>The "model accuracy scoreboard" numbers are reproducible from public historic archives — anyone can rerun the scoring.</li>
+          </ul>
+
+          <p>
+            The result is a system I can defend, built faster than I could have built it alone.
+            But the speed of the build isn't the takeaway — the discipline of the verification is.
+            That's the part of AI-assisted development that generalizes.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section class="stack-section">
+      <div class="container">
+        <div class="stack-grid">
+          <div class="stack-meta">
+            <p class="section-eyebrow" style="margin-bottom: 14px;">Stack</p>
+            <h2>What's under the hood.</h2>
+            <p>
+              Client-side JavaScript pulling from multiple public forecast APIs. No backend.
+              Accuracy scoring runs over historic forecast archives and observed weather,
+              fully reproducible from public data.
+            </p>
+          </div>
+          <div class="stack-categories">
+            <div>
+              <p class="stack-cat-label">Front-end</p>
+              <ul class="stack-list">
+                <li>JavaScript</li>
+                <li>HTML / CSS</li>
+                <li>Custom chart rendering</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Data sources</p>
+              <ul class="stack-list">
+                <li>NWS public API</li>
+                <li>ECMWF AIFS via Open-Meteo</li>
+                <li>DeepMind WeatherNext (pending)</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Evaluation</p>
+              <ul class="stack-list">
+                <li>Historic-archive backfill</li>
+                <li>±2°F threshold scoring</li>
+                <li>Disagreement detection</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Workflow</p>
+              <ul class="stack-list">
+                <li>AI-assisted code generation</li>
+                <li>Verification loop discipline</li>
+                <li>GitHub Pages, static only</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LINKS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Artifacts</p>
+        <h2 style="max-width: 18ch;">The work, in public.</h2>
+        <div class="links">
+          <a class="link-card" href="https://github.com/williamcs50/weather-app" target="_blank" rel="noopener">
+            <p class="link-card-label">Code</p>
+            <p class="link-card-title">GitHub repository</p>
+            <p class="link-card-meta">Source and commit history</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://williamcs50.github.io/weather-app/" target="_blank" rel="noopener">
+            <p class="link-card-label">Demo</p>
+            <p class="link-card-title">Live forecast comparison</p>
+            <p class="link-card-meta">Try it with any US city</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://www.ecmwf.int/en/about/media-centre/news/2025/ecmwfs-ai-forecasts-become-operational" target="_blank" rel="noopener">
+            <p class="link-card-label">Reading</p>
+            <p class="link-card-title">About ECMWF AIFS</p>
+            <p class="link-card-meta">ECMWF's published research</p>
+            <span class="arrow">›</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREV / NEXT -->
+    <div class="container">
+      <nav class="pager">
+        <a class="pager-link prev" href="askmickey.html">
+          <p class="pager-label">‹ Previous case study</p>
+          <p class="pager-title">AskMickey</p>
+        </a>
+        <span></span>
+      </nav>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>© 2026 William Opyrchal</span>
+      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+    </div>
+  </footer>
+
+  <!--
+  ============================================================================
+  WEATHER CASE STUDY — uses turbofan.html template
+  ============================================================================
+
+  CONTENT NOTES FOR WILL:
+  - The framing here ("rapid MVP with heavy AI assist; verification loop as
+    the discipline") comes from your existing positioning. The comparison
+    with AskMickey (design-first vs. rapid-MVP) is in the workflow section
+    of each page, so a reader who reads both gets the contrast.
+  - The four verification practices (API inspection, cross-check, edge case
+    testing, visual comparison) are plausible defaults. Confirm or replace.
+  - All three artifact links are placeholders. The "About AIFS" link is a
+    nice-to-have but optional — if you don't want an external reference
+    there, drop it.
+  - The stack list is short. If your implementation uses any specific charting
+    library (Chart.js, D3, Plotly), add it.
+  -->
+</body>
+</html>

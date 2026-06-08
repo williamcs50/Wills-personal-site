@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AskMickey — William Opyrchal</title>
+  <meta name="description" content="A classify-then-route dispatcher on Gemini — MoE-inspired but deterministic. Routes each query to one of eight handlers before any generative call. An EPCOT MVP, shipped cross-platform." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://williamopyrchal.com/askmickey.html" />
+  <meta property="og:title" content="AskMickey — AI Disney World Assistant" />
+  <meta property="og:description" content="A classify-then-route dispatcher on Gemini — MoE-inspired but deterministic. Routes each query to one of eight handlers before any generative call." />
+  <meta property="og:image" content="https://williamopyrchal.com/og-askmickey.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="AskMickey — AI Disney World Assistant" />
+  <meta name="twitter:description" content="A classify-then-route dispatcher on Gemini — MoE-inspired but deterministic." />
+  <meta name="twitter:image" content="https://williamopyrchal.com/og-askmickey.png" />
+
+  <style>
+    :root {
+      --bg: #16181C;
+      --bg-alt: #1D1F23;
+      --bg-section: #232529;
+      --ink: #F5F5F7;
+      --ink-2: #C7C7CC;
+      --muted: #98989D;
+      --faint: #6E6E73;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.06);
+      --link: #2997FF;
+      --link-hover: #5AB0FF;
+      --accent: #2997FF;
+      --code-bg: #0F1115;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+              "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+    .container-narrow {
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(22, 24, 28, 0.78);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: color 160ms ease;
+    }
+    .nav-back:hover { color: var(--ink); }
+    .nav-back .chev { transform: translateY(-1px); }
+    .nav-brand {
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .nav-spacer { width: 80px; }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      font-weight: 600;
+      font-size: clamp(40px, 6vw, 80px);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+      margin: 0;
+    }
+    h2 {
+      font-weight: 600;
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      color: var(--ink);
+      margin: 0;
+    }
+    h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--link);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+    .lede {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: 0.004em;
+      line-height: 1.35;
+    }
+
+    .hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .hero-inner > * {
+      opacity: 0;
+      transform: translateY(28px);
+      animation: heroIn 1100ms cubic-bezier(.16,.84,.3,1) forwards;
+    }
+    .hero-inner > *:nth-child(1) { animation-delay: 80ms; }
+    .hero-inner > *:nth-child(2) { animation-delay: 220ms; }
+    .hero-inner > *:nth-child(3) { animation-delay: 380ms; }
+    .hero-inner > *:nth-child(4) { animation-delay: 560ms; }
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+
+    .hero h1 { max-width: 16ch; margin-bottom: 22px; }
+    .hero .lede { max-width: 56ch; margin-bottom: 28px; }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .hero-meta strong { color: var(--ink-2); font-weight: 600; }
+
+    .section { padding: 100px 0; border-bottom: 1px solid var(--line-soft); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+
+    .prose { max-width: 680px; }
+    .prose p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 24px;
+      letter-spacing: -0.01em;
+    }
+    .prose p strong { color: var(--ink); font-weight: 600; }
+    .prose p em { color: var(--ink); font-style: italic; }
+    .prose ul { margin: 0 0 24px; padding: 0; list-style: none; }
+    .prose li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+    .prose li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 12px;
+      width: 8px; height: 1px;
+      background: var(--muted);
+    }
+    .prose code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+
+    /* Flow diagram — ASCII-ish flow block */
+    .flow-diagram {
+      margin: 16px 0 32px;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 28px 32px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--ink-2);
+      letter-spacing: 0;
+      overflow-x: auto;
+    }
+    .flow-diagram .label { color: var(--accent); }
+    .flow-diagram .arrow { color: var(--faint); }
+    .flow-diagram .branch { color: var(--ink); font-weight: 600; }
+
+    .callout {
+      margin: 32px 0;
+      padding: 24px 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-alt);
+      border-radius: 0 12px 12px 0;
+    }
+    .callout p {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+
+    /* Video demo figure */
+    .video-figure {
+      margin: 0 auto;
+      max-width: 760px;
+    }
+    .video-frame {
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 12px;
+      overflow: hidden;
+    }
+    .video-frame video {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 70vh;
+      border-radius: 12px;
+      background: #000;
+      object-fit: contain;
+    }
+    .video-figure figcaption {
+      margin-top: 18px;
+      padding: 0 8px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+      text-align: center;
+    }
+
+    /* Screenshot showcase */
+    .shot-group { margin-bottom: 56px; }
+    .shot-group:last-child { margin-bottom: 0; }
+    .shot-group-head {
+      max-width: 680px;
+      margin: 0 0 24px;
+    }
+    .shot-group-head h3 {
+      font-size: 22px;
+      margin: 0 0 8px;
+    }
+    .shot-group-head p {
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--muted);
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    .shot-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .shot {
+      margin: 0;
+    }
+    .shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #000;
+    }
+    .shot figcaption {
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+      letter-spacing: -0.005em;
+    }
+    .shot figcaption strong { color: var(--ink-2); font-weight: 600; }
+    @media (max-width: 820px) {
+      .shot-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    }
+    @media (max-width: 520px) {
+      .shot-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
+
+    /* Stack section */
+    .stack-section { background: var(--bg-alt); padding: 80px 0; border-bottom: 1px solid var(--line-soft); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .stack-meta h2 { font-size: clamp(28px, 3vw, 36px); }
+    .stack-meta p { color: var(--muted); font-size: 16px; margin: 14px 0 0; }
+    .stack-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 36px;
+    }
+    .stack-cat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .stack-list { list-style: none; padding: 0; margin: 0; }
+    .stack-list li {
+      font-size: 15px;
+      color: var(--ink);
+      padding: 7px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* Links */
+    .links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .link-card {
+      display: block;
+      padding: 24px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .link-card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .link-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0 0 4px;
+    }
+    .link-card-meta { font-size: 13px; color: var(--muted); margin: 0; }
+    .link-card .arrow {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* Pager */
+    .pager {
+      padding: 64px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .pager-link {
+      display: block;
+      padding: 28px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .pager-link:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .pager-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pager-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0;
+    }
+    .pager-link.next { text-align: right; }
+
+    footer {
+      padding: 28px 0 36px;
+      background: var(--bg);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    @media (max-width: 880px) {
+      .stack-grid { grid-template-columns: 1fr; gap: 32px; }
+      .stack-categories { grid-template-columns: 1fr; gap: 24px; }
+      .links { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .hero { padding: 64px 0 56px; }
+    }
+    @media (max-width: 640px) {
+      .pager { grid-template-columns: 1fr; }
+      .pager-link.next { text-align: left; }
+      h1 { font-size: clamp(34px, 9vw, 48px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .hero-inner > * { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="container">
+      <a class="nav-back" href="index.html"><span class="chev">‹</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-inner">
+        <p class="eyebrow">Case Study · 02</p>
+        <h1>AskMickey.</h1>
+        <p class="lede">
+          A cross-platform Disney World assistant, built for EPCOT. A classify-then-route
+          dispatcher on top of Gemini — mixture-of-experts in spirit, deterministic in
+          implementation.
+        </p>
+        <div class="hero-meta">
+          <span><strong>Stack:</strong> Dart · Flutter · Gemini</span>
+          <span><strong>Period:</strong> 2025</span>
+          <span><strong>Status:</strong> MVP · iOS · Android · Web</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTEXT -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Context</p>
+        <div class="prose">
+          <p>
+            Walt Disney World is a wonderful vacation — and, from a purely logistical view, a
+            genuinely hard problem. Park hours, ride availability, queue times, transportation,
+            dining reservations, weather, geolocation — decisions stack up by the minute. A
+            generic LLM chatbot would either hallucinate specifics or fail at routing the
+            question to the right data source.
+          </p>
+          <p>
+            AskMickey is a solo build. The concept, architecture, routing logic, and prompt
+            design are mine, worked out before any code was written; a portion of the
+            implementation was AI-assisted from that specification. The current release is an
+            EPCOT-only MVP — the routing pattern is built to generalize to other parks.
+          </p>
+          <p>
+            The architectural question was: <em>how do you route a guest's question to the right
+            handler when you have a dozen domain-specific data sources and one general LLM?</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE WORK -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The architecture</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Inspired by Mixture-of-Experts.</h2>
+
+          <p>
+            The pattern I converged on is <strong>classify-then-route</strong>: a lightweight
+            classifier reads the incoming query, picks one of several specialized handlers, and
+            dispatches the query to that handler alone. Each handler has its own context
+            (live queue data, restaurant menus, attraction status, current weather) and its own
+            prompt scaffolding before calling Gemini.
+          </p>
+
+          <div class="flow-diagram">
+<span class="label">Query</span>  <span class="arrow">→</span>  <span class="label">Classifier (Gemini)</span>  <span class="arrow">→</span>  <span class="label">Router</span>  <span class="arrow">→</span>  <span class="branch">[ one handler ]</span>  <span class="arrow">→</span>  <span class="label">Gemini</span>  <span class="arrow">→</span>  Response
+
+<span class="arrow">                                   │</span>
+<span class="arrow">                                   ├──</span> <span class="branch">AttractionInfo</span>   <span class="arrow">(status, details)</span>
+<span class="arrow">                                   ├──</span> <span class="branch">AttractionQueue</span>  <span class="arrow">(live wait times)</span>
+<span class="arrow">                                   ├──</span> <span class="branch">Dining / Menu</span>    <span class="arrow">(menus, options)</span>
+<span class="arrow">                                   ├──</span> <span class="branch">Weather</span>          <span class="arrow">(live conditions)</span>
+<span class="arrow">                                   ├──</span> <span class="branch">Maps</span>             <span class="arrow">(geo, walking routes)</span>
+<span class="arrow">                                   ├──</span> <span class="branch">ParkingLocation</span>  <span class="arrow">(static lookup)</span>
+<span class="arrow">                                   ├──</span> <span class="branch">FunFacts</span>         <span class="arrow">(park trivia)</span>
+<span class="arrow">                                   └──</span> <span class="branch">ConversationContinuation</span> <span class="arrow">(follow-ups)</span>
+
+<span class="arrow">          safety paths:</span>  <span class="branch">InappropriatePrompt</span> · <span class="branch">NotDisneyRelated</span> · <span class="branch">IndeterminateCategory</span>
+          </div>
+
+          <p>
+            This is mixture-of-experts in <em>spirit</em>. The shape is the same: many specialized
+            experts, one gate that picks among them, one expert activated per query.
+          </p>
+
+          <p>
+            The technical distinction is real. Mixture-of-experts uses a <em>learned</em> gate
+            trained jointly with the experts, soft-routes across multiple experts simultaneously,
+            and lives inside the model architecture. AskMickey's router is a deterministic
+            classifier — handwritten rules and a small classification model — sitting
+            <em>outside</em> the LLM, picking exactly one handler per query.
+          </p>
+
+          <div class="callout">
+            <p>
+              It performs the function MoE was invented to solve — routing inputs to specialized
+              capacity — through a simpler, deterministic mechanism that fit the problem.
+            </p>
+          </div>
+
+          <h3 style="margin-top: 40px;">Why this shape worked</h3>
+          <p>
+            Four reasons the classify-then-route pattern fit the problem better than a single
+            general handler:
+          </p>
+          <ul>
+            <li>Each handler carries its own live data — wait times for queues, conditions for weather — without polluting unrelated queries with irrelevant context.</li>
+            <li>Safety is enforced at classification time, before any generative call. Inappropriate, off-domain, or unclassifiable queries short-circuit to dedicated handlers instead of reaching the LLM — guardrails by architecture, not by hoping the prompt holds.</li>
+            <li>Failure isolation: if the weather data source goes down, attraction queries still work.</li>
+            <li>Per-handler prompt scaffolding means each handler is tuned independently. The dining handler doesn't need to know about ride heights.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEMO -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Demo</p>
+        <h2 style="margin-bottom: 28px; max-width: 18ch;">See it route.</h2>
+        <div class="prose" style="margin-bottom: 32px;">
+          <p>
+            A full walkthrough — a range of real guest queries, each classified, routed to the
+            right handler, and answered completely. The breadth is the point. Live data
+            (wait times, weather radar), structured retrieval at scale (a full festival menu
+            with every item, location, and price), and geolocation routing from the guest's
+            actual position (quickest path to a ride, nearest restroom, even a route back to
+            where they parked).
+          </p>
+          <p>
+            It's also a finished product, not a tech demo: consistent in-character voice, a
+            themed interface, and an animated loading state that keeps the tone while a query
+            is processing.
+          </p>
+        </div>
+      </div>
+
+      <div class="container">
+        <figure class="video-figure">
+          <div class="video-frame">
+            <video
+              controls
+              preload="metadata"
+              playsinline
+              poster="askmickey-demo-poster.jpg"
+              loading="lazy">
+              <source src="askmickey-demo.mp4" type="video/mp4" />
+              Your browser doesn't support embedded video.
+              <a href="askmickey-demo.mp4">Download the demo clip ›</a>
+            </video>
+          </div>
+          <figcaption>
+            Ride info, live wait times, dining and menus, weather radar, turn-by-turn routing,
+            and a trip back to the car — each query classified, routed, and answered with real data.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- SCREENSHOT SHOWCASE -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">What it actually does</p>
+        <h2 style="max-width: 20ch; margin-bottom: 48px;">Range, in the guest's own words.</h2>
+
+        <div class="shot-group">
+          <div class="shot-group-head">
+            <h3>Real-time information, in character</h3>
+            <p>
+              Natural-language questions answered with live, accurate data — and a consistent
+              Mickey voice throughout. The themed starfield interface is the app's own.
+            </p>
+          </div>
+          <div class="shot-grid">
+            <figure class="shot">
+              <img src="am-02-home.png" alt="AskMickey home screen with themed Mickey starfield" loading="lazy" />
+              <figcaption><strong>Home.</strong> Animated, themed interface — the app's own UI.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-03-testtrack.png" alt="Test Track height and ride duration answer" loading="lazy" />
+              <figcaption><strong>Ride details.</strong> Height requirement and duration for Test Track, answered conversationally.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-11-weather.png" alt="Weather forecast with heat index" loading="lazy" />
+              <figcaption><strong>Weather.</strong> Forecast with heat index, plus an offer to pull live radar.</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="shot-group">
+          <div class="shot-group-head">
+            <h3>Structured retrieval at scale</h3>
+            <p>
+              Dense, multi-result queries handled completely — every option, location, and price —
+              and a hand-off to the official source when that's the right answer.
+            </p>
+          </div>
+          <div class="shot-grid">
+            <figure class="shot">
+              <img src="am-04-fishchips.png" alt="Every place to get fish and chips with prices" loading="lazy" />
+              <figcaption><strong>Multi-result.</strong> Every spot serving fish &amp; chips, with prices, across the park.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-05-rosecrown-ask.png" alt="Rose and Crown menu offer" loading="lazy" />
+              <figcaption><strong>Routed intent.</strong> Recognizes a menu request and offers to pull it up.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-06-rosecrown-menu.png" alt="Official Disney Rose and Crown menu" loading="lazy" />
+              <figcaption><strong>Source of truth.</strong> Hands off to the official Disney menu rather than risk a stale answer.</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="shot-group">
+          <div class="shot-group-head">
+            <h3>Geolocation routing from where you're standing</h3>
+            <p>
+              The app resolves the destination from a plain-language question, reads the guest's
+              current location, and launches a turn-by-turn walking route — delegating the map to
+              the tool that does mapping best.
+            </p>
+          </div>
+          <div class="shot-grid">
+            <figure class="shot">
+              <img src="am-07-remy-ask.png" alt="Quickest route to Remy's Ratatouille Adventure" loading="lazy" />
+              <figcaption><strong>Destination resolved.</strong> "Quickest route to Remy's" — understood and confirmed.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-08-remy-map.png" alt="Walking route to Remy's, 15 minutes" loading="lazy" />
+              <figcaption><strong>Live route.</strong> Turn-by-turn from current location — 15-minute walk.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-10-restroom-map.png" alt="Walking route to nearest restroom, 1 minute" loading="lazy" />
+              <figcaption><strong>Nearest restroom.</strong> Same pattern, any destination — a 1-minute walk away.</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="shot-group">
+          <div class="shot-group-head">
+            <h3>The touches that make it a product</h3>
+            <p>
+              Details that show the system was designed for real guests on a real park day —
+              not assembled as a tech demo.
+            </p>
+          </div>
+          <div class="shot-grid">
+            <figure class="shot">
+              <img src="am-01-save-car.png" alt="Offer to save parking location" loading="lazy" />
+              <figcaption><strong>Save your spot.</strong> Offers to remember where you parked — so "I'm ready to go home" routes you back to the car.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-09-restroom-ask.png" alt="Nearest restroom intent recognized" loading="lazy" />
+              <figcaption><strong>Plain language.</strong> "Where's the nearest restroom" resolves to a specific location and route.</figcaption>
+            </figure>
+            <figure class="shot">
+              <img src="am-12-radar.png" alt="Live NWS weather radar for Orlando" loading="lazy" />
+              <figcaption><strong>Live radar.</strong> Real NWS radar for the park, on request.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WORKFLOW NOTE -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Workflow</p>
+        <h2 style="margin-bottom: 28px;">Design by hand. Implementation with AI.</h2>
+        <div class="prose">
+          <p>
+            AskMickey predates the structured AI-assisted workflow I use now. The architecture
+            above — the routing pattern, the handler split, the safety paths, the data-source
+            design — was worked out before any code was written. AI tooling entered once the
+            specification was stable, assisting with a portion of the implementation: scaffolding
+            Flutter widgets, handler boilerplate, tests against the spec.
+          </p>
+          <p>
+            That sequence is the distinction I'd draw: <strong>concept, architecture, and
+            specification by hand; a portion of the implementation accelerated with AI after the
+            design is set.</strong> It's a different workflow than the rapid-MVP-with-heavy-AI
+            approach I took on the weather project later, and both have their place — but for a
+            system with non-trivial routing logic, designing first and implementing second
+            produces a system you can defend in detail.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section class="stack-section">
+      <div class="container">
+        <div class="stack-grid">
+          <div class="stack-meta">
+            <p class="section-eyebrow" style="margin-bottom: 14px;">Stack</p>
+            <h2>What's under the hood.</h2>
+            <p>
+              Cross-platform Flutter for the client. Dart for the routing and dispatch logic.
+              Gemini as the underlying LLM. Live data sources integrated per handler.
+            </p>
+          </div>
+          <div class="stack-categories">
+            <div>
+              <p class="stack-cat-label">Client</p>
+              <ul class="stack-list">
+                <li>Flutter</li>
+                <li>Dart</li>
+                <li>iOS · Android · Web · Desktop</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Routing</p>
+              <ul class="stack-list">
+                <li>Classify-then-route dispatcher</li>
+                <li>Deterministic gating</li>
+                <li>Per-handler prompt scaffolding</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">LLM</p>
+              <ul class="stack-list">
+                <li>Google Gemini</li>
+                <li>Handler-specific contexts</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Data sources</p>
+              <ul class="stack-list">
+                <li>Live queue / wait times</li>
+                <li>Dining menus · weather</li>
+                <li>Maps · geolocation</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LINKS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Artifacts</p>
+        <h2 style="max-width: 18ch;">The work, in public.</h2>
+        <div class="links">
+          <a class="link-card" href="https://github.com/williamcs50/AskMickey" target="_blank" rel="noopener">
+            <p class="link-card-label">Code</p>
+            <p class="link-card-title">GitHub repository</p>
+            <p class="link-card-meta">Source and history</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://www.youtube.com/watch?v=tvfP0SIrxjA" target="_blank" rel="noopener">
+            <p class="link-card-label">Demo</p>
+            <p class="link-card-title">Watch it route</p>
+            <p class="link-card-meta">Full walkthrough on YouTube</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/AskMickey/blob/main/ARCHITECTURE.md" target="_blank" rel="noopener">
+            <p class="link-card-label">Writeup</p>
+            <p class="link-card-title">Architecture notes</p>
+            <p class="link-card-meta">Routing design in detail</p>
+            <span class="arrow">›</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREV / NEXT -->
+    <div class="container">
+      <nav class="pager">
+        <a class="pager-link prev" href="turbofan.html">
+          <p class="pager-label">‹ Previous case study</p>
+          <p class="pager-title">Turbofan Predictive Maintenance</p>
+        </a>
+        <a class="pager-link next" href="weather.html">
+          <p class="pager-label">Next case study ›</p>
+          <p class="pager-title">Weather Forecasting: Physics vs. ML</p>
+        </a>
+      </nav>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>© 2026 William Opyrchal</span>
+      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+    </div>
+  </footer>
+
+  <!--
+  ============================================================================
+  ASKMICKEY CASE STUDY — uses turbofan.html template
+  ============================================================================
+
+  CONTENT NOTES FOR WILL:
+  - The "five handlers" example (attractions / dining / transit / navigation /
+    general) is a plausible structure but I don't know the actual handler set
+    in your code. Confirm or replace with the real list.
+  - The workflow framing (design by hand, AI for implementation) carries the
+    distinction Joe surfaced earlier — that AskMickey's workflow differs from
+    the weather project's rapid-MVP-with-AI approach.
+  - The MoE-vs-classify-then-route honest framing is workshopped from the
+    Thursday morning kickoff. Confirm the final phrasing.
+  - All three artifact links are placeholders.
+  - The diagram is plain text in a mono code block. Replace with a real flow
+    image later if you want a stronger visual.
+  -->
+</body>
+</html>
