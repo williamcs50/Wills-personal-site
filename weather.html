@@ -4,17 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Weather Forecasting: Physics vs. ML — William Opyrchal</title>
-  <meta name="description" content="A live evaluation system comparing physics-based and machine-learning weather forecasts — model consensus, confidence, disagreement alerts, and a rolling accuracy scoreboard." />
+  <meta name="description" content="A live evaluation system comparing GFS, ECMWF AIFS, and DeepMind WeatherNext — side-by-side forecasts, disagreement alerts, and a three-model accuracy scoreboard verified against real observations." />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://williamopyrchal.com/weather.html" />
   <meta property="og:title" content="Weather Forecasting: Physics vs. ML" />
-  <meta property="og:description" content="A live evaluation system comparing physics-based and machine-learning weather forecasts — disagreement alerts and a rolling accuracy scoreboard." />
+  <meta property="og:description" content="GFS, ECMWF AIFS, and DeepMind WeatherNext compared side by side — disagreement alerts and a verified three-model accuracy scoreboard." />
   <meta property="og:image" content="https://williamopyrchal.com/og-weather.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Weather Forecasting: Physics vs. ML" />
-  <meta name="twitter:description" content="A live evaluation system comparing physics-based and machine-learning weather forecasts." />
+  <meta name="twitter:description" content="GFS, ECMWF AIFS, and DeepMind WeatherNext compared — disagreement alerts and a verified accuracy scoreboard." />
   <meta name="twitter:image" content="https://williamopyrchal.com/og-weather.png" />
 
   <style>
@@ -511,12 +511,10 @@
         <p class="eyebrow">Case Study · 03</p>
         <h1>Is ML actually beating physics at weather?</h1>
         <p class="lede">
-          A live evaluation system comparing the National Weather Service's physics-based
-          forecasts against ECMWF's AIFS machine-learning model — with disagreement alerts
-          and a running 30-day accuracy scoreboard.
+          A live evaluation system comparing physics-based and machine-learning weather forecasts — with disagreement alerts and a verified accuracy scoreboard.
         </p>
         <div class="hero-meta">
-          <span><strong>Stack:</strong> JavaScript · NWS · ECMWF AIFS · Open-Meteo</span>
+          <span><strong>Stack:</strong> JavaScript · Python · NWS · Open-Meteo · BigQuery · ECMWF AIFS · DeepMind WeatherNext</span>
           <span><strong>Period:</strong> 2026</span>
           <span><strong>Status:</strong> Live demo</span>
         </div>
@@ -529,10 +527,10 @@
         <p class="section-eyebrow">Context</p>
         <div class="prose">
           <p>
-            Weather forecasting just changed. For the first time, a machine-learning model — ECMWF's
-            <em>Artificial Intelligence Forecasting System</em>, or AIFS — produces operational
-            forecasts that match or beat the physics-based numerical models the field has relied
-            on for decades.
+            Weather forecasting just changed. For the first time, machine-learning models are
+            producing operational forecasts that match or beat the physics-based numerical models
+            the field has relied on for decades. Two leading approaches have emerged: ECMWF's
+            Artificial Intelligence Forecasting System (AIFS) and Google DeepMind's WeatherNext.
           </p>
           <p>
             That's a substantial claim. The interesting question isn't whether to believe it —
@@ -540,9 +538,9 @@
             real locations, day after day.
           </p>
           <p>
-            This project is an evaluation system: same location, two forecast sources, displayed
-            side by side, with the divergences flagged automatically and the accuracy of each
-            model tracked against ground truth over time.
+            This project is an evaluation system: same location, three forecast sources displayed
+            side by side, with divergences flagged automatically and the accuracy of each model
+            tracked against ground truth over time.
           </p>
         </div>
       </div>
@@ -553,37 +551,45 @@
       <div class="container-narrow">
         <p class="section-eyebrow">The system</p>
         <div class="prose">
-          <h2 style="margin-bottom: 28px;">Two forecasts. One scoreboard.</h2>
+          <h2 style="margin-bottom: 28px;">Three forecasts. One scoreboard.</h2>
 
           <p>
-            The app pulls forecasts from two sources for a user-selected location and renders
-            them on a shared set of axes — same horizon, same units, same time ranges. Then it
-            does three things a side-by-side viewer alone wouldn't:
+            The app pulls live forecasts for GFS and AIFS from Open-Meteo for a user-selected
+            location and renders them side-by-side on shared axes — same horizon, same units,
+            same time ranges. It then adds the third model, DeepMind WeatherNext, through scores
+            pre-computed from Google BigQuery and served as static JSON, producing one three-model
+            accuracy scoreboard verified against real Iowa Mesonet ASOS observations. Then it
+            delivers three things a side-by-side viewer alone wouldn't:
           </p>
 
           <h3 style="margin-top: 36px;">1. A consensus view with confidence bands</h3>
           <p>
-            Each model's forecast carries its own uncertainty. NWS shows a steady widening of
-            confidence as the horizon extends; AIFS shows a sharper "cliff" at around day 3
-            where its certainty drops off. Both bands rendered together — the user sees not
-            just the predictions but how much each model trusts itself.
+            Each model's forecast carries its own uncertainty. GFS and AIFS both display
+            confidence bands derived from their ensemble member spread. These are rendered
+            together so the user can see not only the predicted values but also how much
+            uncertainty each model carries at different lead times. WeatherNext is not included
+            in this view, as it only appears in the historic accuracy scoreboard.
           </p>
 
           <h3 style="margin-top: 36px;">2. Disagreement alerts</h3>
           <p>
-            When the two models predict materially different outcomes for the same day — say,
-            <code>NWS 89°F vs AIFS 82°F</code> — the system surfaces the divergence as an alert
-            with the magnitude. These are the cases that matter: agreement is uninteresting,
-            disagreement is where one of the models is about to be wrong.
+            When GFS and AIFS predict materially different outcomes for the same day — for
+            example, <code>GFS 89°F vs AIFS 82°F</code> — the system surfaces the divergence as
+            an alert and shows the size of the difference. These are the cases that matter:
+            where the models agree is uninteresting; where they disagree is where at least one
+            of them is likely to be wrong.
           </p>
 
           <h3 style="margin-top: 36px;">3. A running accuracy scoreboard</h3>
           <p>
-            For each location a user searches, the system backfills both models' next-day
-            forecasts from public historic archives and scores them against the observed daily
-            high — live, on demand, against a <code>±2°F</code> threshold over a 30-day window.
-            The scoreboard isn't a fixed result; it recomputes per location every time. A
-            representative snapshot for one city:
+            The system scores GFS and AIFS on instantaneous 2m temperature at 18:00 UTC with
+            a <code>+3-day</code> lead time for any location a user searches. For a set of pre-supported
+            cities, it also includes WeatherNext using pre-computed scores, producing a
+            three-model comparison. All scores use mean absolute error in degrees Fahrenheit
+            and are verified against the nearest Iowa Mesonet ASOS observation to 18:00 UTC.
+            This metric was chosen because WeatherNext does not provide a daily maximum
+            temperature variable; 18:00 UTC instantaneous temperature is the single value that
+            GFS, AIFS, and WeatherNext all produce natively.
           </p>
         </div>
       </div>
@@ -592,19 +598,19 @@
       <div class="container" style="margin-top: 24px;">
         <div class="finding-stats">
           <div class="finding">
-            <p class="finding-source">NWS · Physics</p>
-            <p class="finding-number">10%</p>
-            <p class="finding-detail">within ±2°F · 20 days scored</p>
+            <p class="finding-source">GFS · Physics</p>
+            <p class="finding-number">3.92°F</p>
+            <p class="finding-detail">average error · six-city aggregate</p>
           </div>
           <div class="finding">
             <p class="finding-source">AIFS · ML</p>
-            <p class="finding-number">64%</p>
-            <p class="finding-detail">within ±2°F · 11 days scored</p>
+            <p class="finding-number">3.02°F</p>
+            <p class="finding-detail">average error · six-city aggregate</p>
           </div>
-          <div class="finding finding-pending">
-            <p class="finding-source">DeepMind · WeatherNext</p>
-            <p class="finding-number">—</p>
-            <p class="finding-detail">awaiting API access</p>
+          <div class="finding">
+            <p class="finding-source">WeatherNext · GenCast</p>
+            <p class="finding-number">3.13°F</p>
+            <p class="finding-detail">average error · six-city aggregate</p>
           </div>
         </div>
       </div>
@@ -612,11 +618,12 @@
       <div class="container-narrow" style="margin-top: 40px;">
         <div class="prose">
           <p>
-            These are early numbers on a small per-location sample, and the scoring methodology
-            is still being hardened — see the writeup for the open questions. The point of the
-            scoreboard isn't the headline percentage; it's that the comparison is measurable at
-            all, on real forecasts for real places, in a way anyone can rerun from public data.
-            That's what the project was built to make possible.
+            Six-city aggregate over a 30-day warm-season window as of June 2026. One airport
+            station per city. Early sample, not a long-term baseline. Metric changed on
+            June 15, 2026 from daily maximum temperature to instantaneous 2m temperature at
+            18:00 UTC; scores from before that date used a different metric and are not
+            comparable. WeatherNext is an experimental model and not approved for operational
+            or safety-critical use. These results are for research and comparison purposes only.
           </p>
         </div>
       </div>
@@ -625,12 +632,12 @@
       <div class="figure-wide container">
         <figure class="figure">
           <img src="weather-comparison.png"
-               alt="The NWS vs AIFS Weather Forecast app showing model consensus chart, confidence bands, four disagreement alerts, and a 30-day accuracy scoreboard."
+               alt="The weather forecast comparison app showing GFS and AIFS forecasts on shared axes, confidence bands, disagreement alerts, and the three-model accuracy scoreboard with GFS, AIFS, and DeepMind WeatherNext."
                loading="lazy" />
           <figcaption>
-            The full evaluation view for a single location — consensus, confidence bands,
-            flagged disagreements, and the running accuracy scoreboard. DeepMind WeatherNext
-            is wired in but currently pending API access.
+            The full evaluation view for a single location — GFS and AIFS side by side,
+            confidence bands, flagged disagreements, and the three-model accuracy scoreboard
+            with WeatherNext included.
           </figcaption>
         </figure>
       </div>
@@ -670,10 +677,12 @@
           </p>
           <ul>
             <li>API responses inspected directly against documentation — never trusted from AI-generated handler code alone.</li>
-            <li>Forecast values cross-checked against the official NWS and ECMWF outputs before render.</li>
+            <li>Forecast values cross-checked against the official GFS and ECMWF outputs before render.</li>
             <li>Unit and timezone conversions tested with edge cases — the single largest source of silent bugs in any weather application.</li>
             <li>Accuracy scoring methodology validated against a small hand-checked sample before backfilling at scale.</li>
             <li>The "model accuracy scoreboard" numbers are reproducible from public historic archives — anyone can rerun the scoring.</li>
+            <li>Iowa Mesonet's API silently excludes the end date from a requested date range — no error, just a missing day of ground truth. Manual comparison of expected versus returned record counts caught it.</li>
+            <li>Open-Meteo's AIFS archive retroactively revises historic forecasts without notice — scores computed one day could silently change the next. Comparing values across runs caught the drift and prompted switching WeatherNext to static pre-computed JSON rather than relying on a live archive.</li>
           </ul>
 
           <p>
@@ -693,9 +702,10 @@
             <p class="section-eyebrow" style="margin-bottom: 14px;">Stack</p>
             <h2>What's under the hood.</h2>
             <p>
-              Client-side JavaScript pulling from multiple public forecast APIs. No backend.
-              Accuracy scoring runs over historic forecast archives and observed weather,
-              fully reproducible from public data.
+              Client-side JavaScript. Live forecasts from Open-Meteo (NWS for location/station
+              lookup only). No backend. WeatherNext scores served from static JSON pre-computed
+              from BigQuery. Accuracy scoring runs over historic archives and observations;
+              reproducible from public APIs and committed static files.
             </p>
           </div>
           <div class="stack-categories">
@@ -710,16 +720,17 @@
             <div>
               <p class="stack-cat-label">Data sources</p>
               <ul class="stack-list">
-                <li>NWS public API</li>
-                <li>ECMWF AIFS via Open-Meteo</li>
-                <li>DeepMind WeatherNext (pending)</li>
+                <li>Open-Meteo (GFS + AIFS)</li>
+                <li>Google BigQuery (WeatherNext)</li>
+                <li>Iowa Mesonet ASOS (ground truth)</li>
+                <li>NWS API (location lookup)</li>
               </ul>
             </div>
             <div>
               <p class="stack-cat-label">Evaluation</p>
               <ul class="stack-list">
                 <li>Historic-archive backfill</li>
-                <li>±2°F threshold scoring</li>
+                <li>MAE at 18:00 UTC, +3-day lead</li>
                 <li>Disagreement detection</li>
               </ul>
             </div>
@@ -758,6 +769,12 @@
             <p class="link-card-label">Reading</p>
             <p class="link-card-title">About ECMWF AIFS</p>
             <p class="link-card-meta">ECMWF's published research</p>
+            <span class="arrow">›</span>
+          </a>
+          <a class="link-card" href="https://deepmind.google/blog/gencast-predicts-weather-and-the-risks-of-extreme-conditions-with-sota-accuracy/" target="_blank" rel="noopener">
+            <p class="link-card-label">Reading</p>
+            <p class="link-card-title">About DeepMind WeatherNext</p>
+            <p class="link-card-meta">DeepMind's GenCast research</p>
             <span class="arrow">›</span>
           </a>
         </div>
