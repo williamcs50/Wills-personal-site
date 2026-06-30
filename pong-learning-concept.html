@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pong from Pixels — learning concept</title>
+<style>
+  :root{
+    --bg:#16181C; --panel:#0E0F12;
+    --ink:#F5F5F7; --muted:#98989D; --faint:#6E6E73;
+    --line:rgba(255,255,255,0.10); --accent:#2997FF;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Liberation Sans",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:28px;}
+  .wrap{max-width:640px;margin:0 auto;}
+  .head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--accent);font-weight:600;}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);
+    border:1px solid var(--line);border-radius:980px;padding:4px 10px;}
+  h1{font-size:26px;font-weight:700;letter-spacing:-0.025em;margin:0;}
+  .titlerow{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:6px 0 9px;}
+  .title-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+  .sound-cta.on{background:var(--accent);border-color:var(--accent);color:#fff;animation:none;}
+
+  /* CRT TV set */
+  .tv{background:linear-gradient(#1c1c1c,#0c0c0c);padding:18px;border-radius:30px;
+    box-shadow:0 26px 60px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.04);}
+  .screen{position:relative;border-radius:46px;overflow:hidden;background:#1b2122;}
+  #court{display:block;width:100%;aspect-ratio:4/3;}
+  .crt{position:absolute;inset:0;pointer-events:none;border-radius:46px;
+    background:
+      radial-gradient(78% 50% at 50% 0%, rgba(255,255,255,0.06), transparent 60%),
+      radial-gradient(125% 125% at 50% 50%, transparent 52%, rgba(0,0,0,0.6) 100%),
+      repeating-linear-gradient(to bottom, rgba(0,0,0,0.10) 0 1px, transparent 1px 3px);
+    box-shadow: inset 0 0 70px rgba(0,0,0,0.55);}
+  .court-labels{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:9px 8px 0;}
+  .court-labels .cl{font-family:var(--mono);font-size:12.5px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;}
+  .court-labels .cpu{color:var(--muted);}
+  .court-labels .agent{color:var(--accent);}
+
+  /* instrument strip */
+  .instruments{display:flex;gap:14px;margin-top:16px;}
+  .inst{flex:1;border:1px solid var(--line);border-radius:12px;background:#0A0B0D;padding:11px 13px 9px;}
+  .ilbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .ilbl span:first-child{font-family:var(--mono);font-size:11px;letter-spacing:0.10em;text-transform:uppercase;color:var(--ink);}
+  .ilbl .isub{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:0;text-transform:none;}
+  #qcanvas{display:block;width:100%;height:78px;}
+  #vcanvas{display:block;width:100%;height:78px;}
+  @media (max-width:560px){ .instruments{flex-direction:column;} }
+
+  /* learning curve — underneath, full width */
+  .curve-wrap{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#0A0B0D;padding:12px 12px 6px;}
+  .curve-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .curve-label{font-family:var(--mono);font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);}
+  .curve-val{font-family:var(--mono);font-size:12px;color:var(--accent);}
+  #curve{display:block;width:100%;height:170px;}
+
+  /* control */
+  .ctl-label{display:flex;justify-content:space-between;align-items:flex-end;margin:20px 0 8px;}
+  .ctl-label .lhs{font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink);}
+  .ctl-label .rhs{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .ctl-label .rhs b{color:var(--accent);}
+  .controls{display:flex;align-items:center;gap:14px;}
+  .play{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+    background:#1A1D22;color:var(--ink);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:background 140ms ease,transform 140ms ease;}
+  .play:hover{background:#23272d;transform:translateY(-1px);}
+  .scrub{flex:1;}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:4px;
+    background:linear-gradient(to right,var(--accent) 0%,var(--accent) var(--p,0%),rgba(255,255,255,0.14) var(--p,0%));outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#fff;cursor:grab;border:3px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,0.5);}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;cursor:grab;border:3px solid var(--accent);}
+  .ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:7px;}
+
+  .caption{margin-top:20px;font-size:12.5px;line-height:1.5;color:var(--faint);max-width:80ch;}
+  .caption b{color:var(--muted);font-weight:600;}
+  @media (max-width:620px){ h1{font-size:21px;} }
+
+  /* guided tour */
+  .tour-cta{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;
+    color:var(--accent);background:rgba(41,151,255,0.08);border:1px solid rgba(41,151,255,0.45);border-radius:980px;
+    padding:7px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+    transition:background .18s ease,transform .18s ease,box-shadow .18s ease;animation:tourpulse 2.8s ease-in-out infinite;}
+  .tour-cta:hover{background:rgba(41,151,255,0.18);transform:translateY(-1px);box-shadow:0 6px 20px rgba(41,151,255,0.28);animation:none;}
+  @keyframes tourpulse{0%,100%{box-shadow:0 0 0 0 rgba(41,151,255,0);}50%{box-shadow:0 0 0 5px rgba(41,151,255,0.10);}}
+
+  #tour{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .28s ease;}
+  #tour.on{opacity:1;visibility:visible;}
+  .tour-spot{position:fixed;left:0;top:0;width:0;height:0;border:2px solid var(--accent);border-radius:16px;
+    box-shadow:0 0 0 9999px rgba(0,0,0,0.62), 0 0 26px rgba(41,151,255,0.35);
+    transition:left .34s cubic-bezier(.4,0,.2,1),top .34s cubic-bezier(.4,0,.2,1),width .34s cubic-bezier(.4,0,.2,1),height .34s cubic-bezier(.4,0,.2,1);}
+  .tour-card{position:fixed;left:50%;transform:translateX(-50%);width:min(440px,92vw);pointer-events:auto;
+    background:#16181C;border:1px solid var(--line);border-left:2px solid var(--accent);border-radius:14px;padding:18px 18px 14px;
+    box-shadow:0 24px 70px rgba(0,0,0,0.65);transition:top .32s cubic-bezier(.4,0,.2,1),bottom .32s cubic-bezier(.4,0,.2,1);}
+  .tour-step{font-family:var(--mono);font-size:10.5px;letter-spacing:0.18em;text-transform:uppercase;color:var(--accent);}
+  .tour-title{font-size:16px;font-weight:600;margin:7px 0 6px;letter-spacing:-0.01em;}
+  .tour-body{font-size:13.5px;line-height:1.52;color:var(--muted);}
+  .tour-nav{display:flex;align-items:center;gap:8px;margin-top:15px;}
+  .tour-nav button{font-family:var(--sans);font-size:13px;border-radius:980px;padding:7px 14px;cursor:pointer;border:1px solid var(--line);background:#1A1D22;color:var(--ink);transition:background .15s ease;}
+  .tour-nav button:hover:not(:disabled){background:#23272d;}
+  .tour-nav button:disabled{opacity:.4;cursor:default;}
+  .tour-nav .next{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  .tour-nav .next:hover{background:#1f86ea;}
+  .tour-nav .spacer{flex:1;}
+  .tour-auto{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);cursor:pointer;}
+  .tour-x{position:absolute;top:9px;right:12px;background:none;border:none;color:var(--faint);font-size:17px;line-height:1;cursor:pointer;}
+  @media (prefers-reduced-motion:reduce){ .tour-cta{animation:none;} .tour-spot,.tour-card{transition:none;} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <span class="eyebrow">Pong from Pixels</span>
+      <span class="tag">Illustrative concept</span>
+    </div>
+    <div class="titlerow">
+      <h1>Watch it learn to play Pong.</h1>
+      <div class="title-actions">
+        <button class="tour-cta sound-cta" id="sound" aria-label="Toggle sound" title="Hear the original Pong sound"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg> OG Sound</button>
+        <button class="tour-cta" id="tourStart">&#9654; Guided tour</button>
+      </div>
+    </div>
+
+    <div class="tv">
+      <div class="screen">
+        <canvas id="court"></canvas>
+        <div class="crt"></div>
+      </div>
+    </div>
+    <div class="court-labels">
+      <span class="cl cpu">&larr; CPU opponent</span>
+      <span class="cl agent">Agent &middot; learning from pixels &rarr;</span>
+    </div>
+
+    <div class="instruments">
+      <div class="inst" id="qpanel">
+        <div class="ilbl"><span>Q-values</span><span class="isub">network's action choice</span></div>
+        <canvas id="qcanvas"></canvas>
+      </div>
+      <div class="inst" id="vpanel">
+        <div class="ilbl"><span>Value V(s)</span><span class="isub">&ldquo;will it win this point?&rdquo;</span></div>
+        <canvas id="vcanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="curve-wrap">
+      <div class="curve-top">
+        <span class="curve-label">Average reward / episode</span>
+        <span class="curve-val" id="rwLabel">—</span>
+      </div>
+      <canvas id="curve"></canvas>
+    </div>
+
+    <div class="ctl-label">
+      <span class="lhs">Training time &rarr;</span>
+      <span class="rhs">Episode <b id="ep">0</b> &nbsp;·&nbsp; &epsilon; <b id="eps">1.00</b> &nbsp;·&nbsp; <span id="phase">Exploration</span></span>
+    </div>
+    <div class="controls">
+      <button class="play" id="play" aria-label="Auto-advance training">&#9654;</button>
+      <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0" aria-label="Training time">
+    </div>
+    <div class="ticks"><span>episode 0 · random play</span><span>~700 episodes · trained</span></div>
+
+    <p class="caption">
+      <b>Illustrative concept — representative animation and curve, not measured results.</b>
+      The shipped page uses Will's real per-episode reward log and recorded gameplay at each milestone
+      checkpoint. The right paddle is the agent; its skill is tied to the slider, so the rally you see
+      is the same point the curve is showing.
+    </p>
+  </div>
+
+<script>
+(function(){
+  const DPR = Math.min(window.devicePixelRatio||1, 2);
+  const EPISODES = 700;
+
+  // ---- sound: synthesized Pong blips (off until enabled) ----
+  let actx=null, soundOn=false;
+  function ensureAudio(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} }
+  function beep(freq,dur,vol){
+    if(!soundOn||!actx) return;
+    const t0=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
+    o.type='square'; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol||0.06,t0);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0+dur+0.01);
+  }
+  const sndPaddle=()=>beep(480,0.05,0.06), sndWall=()=>beep(240,0.045,0.05), sndScore=()=>beep(140,0.22,0.07);
+
+  // ---- representative flat-then-climb curve ----
+  function logistic(x){ return 1/(1+Math.exp(-x)); }
+  let seed=7; function rnd(){ seed=(seed*9301+49297)%233280; return seed/233280; }
+  const curve=[];
+  for(let e=0;e<=EPISODES;e++){
+    const base=-21+41*logistic((e-372)/70);
+    const noise=(rnd()-0.5)*1.6*(e>120?1:0.4);
+    curve.push(Math.max(-21,Math.min(20.5,base+noise)));
+  }
+  function smoothReward(tt){ return -21+41*logistic((tt*EPISODES-372)/70); }
+  function rewardAt(tt){ return curve[Math.max(0,Math.min(EPISODES,Math.round(tt*EPISODES)))]; }
+  let t=0;
+  function skillAt(tt){ return Math.max(0,Math.min(1,(smoothReward(tt)+21)/41)); }
+
+  // ---- court canvas (fixed logical coords, crisp-scaled) ----
+  const W=800,H=600;
+  const courtCv=document.getElementById('court'), cctx=courtCv.getContext('2d');
+  function resizeCourt(){
+    const cssW=courtCv.clientWidth, cssH=cssW*H/W, scale=cssW/W;
+    courtCv.width=Math.round(cssW*DPR); courtCv.height=Math.round(cssH*DPR);
+    cctx.setTransform(DPR*scale,0,0,DPR*scale,0,0);
+  }
+
+  // ---- curve canvas (responsive client coords) ----
+  const curveCv=document.getElementById('curve'), gctx=curveCv.getContext('2d');
+  function resizeCurve(){
+    const w=curveCv.clientWidth,h=curveCv.clientHeight;
+    curveCv.width=Math.round(w*DPR); curveCv.height=Math.round(h*DPR);
+    gctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  const qCv=document.getElementById('qcanvas'), qx=qCv.getContext('2d');
+  const vCv=document.getElementById('vcanvas'), vx2=vCv.getContext('2d');
+  function resizeInst(cv,ctx){ const w=cv.clientWidth,h=cv.clientHeight;
+    cv.width=Math.round(w*DPR); cv.height=Math.round(h*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
+  function resizeAll(){ resizeCourt(); resizeCurve(); resizeInst(qCv,qx); resizeInst(vCv,vx2); drawCurve(); }
+  window.addEventListener('resize',resizeAll);
+
+  // ---- blocky score font (3x5) ----
+  const FONT={
+    '0':['111','101','101','101','111'],'1':['010','110','010','010','111'],
+    '2':['111','001','111','100','111'],'3':['111','001','111','001','111'],
+    '4':['101','101','111','001','001'],'5':['111','100','111','001','111'],
+    '6':['111','100','111','101','111'],'7':['111','001','001','001','001'],
+    '8':['111','101','111','101','111'],'9':['111','101','111','001','111']
+  };
+  function drawDigits(str,cx,cy,u,color){ // centered horizontally at cx, top at cy
+    const dw=3*u, gap=u, total=str.length*dw+(str.length-1)*gap;
+    let x=cx-total/2;
+    cctx.fillStyle=color||'#fff';
+    for(const ch of str){
+      const g=FONT[ch]; if(g){ for(let r=0;r<5;r++) for(let c=0;c<3;c++) if(g[r][c]==='1') cctx.fillRect(x+c*u,cy+r*u,u,u); }
+      x+=dw+gap;
+    }
+  }
+
+  // ---- Pong sim ----
+  const PH=H*0.18, PW=14, BS=16, LPX=26, RPX=W-26-14, TOP=14, BOT=H-14;
+  const sim={bx:W/2,by:H/2,vx:9,vy:3,lp:H/2,rp:H/2,sA:0,sB:0,
+             serveTo:1,sgn:0,aHit:true,bHit:true,aOff:0,bOff:0,
+             qU:0.5,qS:0.5,qD:0.5,V:0.5};
+  function resetBall(){ sim.serveTo*=-1; sim.bx=W/2; sim.by=H/2; sim.vx=13*sim.serveTo; sim.vy=(rnd()*10-5); sim.sgn=0; }
+  resetBall();
+  function score(side){ sndScore(); if(side==='A') sim.sA++; else sim.sB++; if(sim.sA>=21||sim.sB>=21){ sim.sA=0; sim.sB=0; } resetBall(); }
+  function bounce(off){ sndPaddle(); sim.vx*=-1; sim.vx*=1.16; sim.vy=sim.vy*1.06+off*0.05;
+    if(Math.abs(sim.vx)>30) sim.vx=30*Math.sign(sim.vx);
+    if(Math.abs(sim.vy)>17) sim.vy=17*Math.sign(sim.vy); }
+  function step(dt){
+    const s=skillAt(t);
+    const VmaxA=7+15*s, VmaxC=15, K=1.6; // faster ball is harder; weaker side misses first
+    sim.bx+=sim.vx*dt; sim.by+=sim.vy*dt;
+    if(sim.by<TOP+BS/2){sim.by=TOP+BS/2;sim.vy*=-1;sndWall();}
+    if(sim.by>BOT-BS/2){sim.by=BOT-BS/2;sim.vy*=-1;sndWall();}
+    // new rally leg: receiving paddle attempts; slow serve is always returnable
+    const g=Math.sign(sim.vx), sp=Math.abs(sim.vx);
+    if(g!==sim.sgn){
+      if(g>0){ sim.aHit=rnd()<1/(1+Math.exp((sp-VmaxA)/K)); sim.aOff=(rnd()<.5?-1:1)*PH*1.15; }
+      else   { sim.bHit=rnd()<1/(1+Math.exp((sp-VmaxC)/K)); sim.bOff=(rnd()<.5?-1:1)*PH*1.15; }
+      sim.sgn=g;
+    }
+    // CPU (left)
+    if(sim.vx<0){ const tgt=sim.bHit?sim.by:sim.by+sim.bOff, ps=sim.bHit?H*0.060:H*0.022;
+      sim.lp+=Math.max(-ps,Math.min(ps,(tgt-sim.lp)))*dt; }
+    else sim.lp+=(H/2-sim.lp)*0.02*dt;
+    // Agent (right)
+    if(sim.vx>0){ const tgt=sim.aHit?sim.by:sim.by+sim.aOff, ps=sim.aHit?H*0.060:H*0.022;
+      sim.rp+=Math.max(-ps,Math.min(ps,(tgt-sim.rp)))*dt; }
+    else sim.rp+=(H/2-sim.rp)*0.015*dt;
+    sim.lp=Math.max(PH/2,Math.min(H-PH/2,sim.lp)); sim.rp=Math.max(PH/2,Math.min(H-PH/2,sim.rp));
+    // collisions (miss = paddle chased just short, so it's out of range here)
+    if(sim.bx<LPX+PW && sim.vx<0 && Math.abs(sim.by-sim.lp)<PH/2){ sim.bx=LPX+PW; bounce(sim.by-sim.lp); }
+    if(sim.bx>RPX && sim.vx>0 && Math.abs(sim.by-sim.rp)<PH/2){ sim.bx=RPX; bounce(sim.by-sim.rp); }
+    if(sim.bx<-BS){ score('A'); }   // CPU missed -> agent scores
+    if(sim.bx>W+BS){ score('B'); }  // agent missed -> CPU scores
+  }
+  function drawCourt(){
+    // CRT phosphor screen (cool blue-gray, brighter toward center)
+    const grad=cctx.createRadialGradient(W/2,H*0.42,H*0.12,W/2,H/2,W*0.78);
+    grad.addColorStop(0,'#3a4749'); grad.addColorStop(1,'#161d1f');
+    cctx.fillStyle=grad; cctx.fillRect(0,0,W,H);
+    const PHOS='#E6ECE8';
+    // boundary lines
+    cctx.fillStyle=PHOS; cctx.fillRect(0,TOP-3,W,3); cctx.fillRect(0,BOT,W,3);
+    // center net
+    for(let y=TOP+6;y<BOT;y+=30) cctx.fillRect(W/2-2,y,4,18);
+    // scores (cpu left = phosphor white, agent right = blue)
+    const u=H*0.028;
+    drawDigits(String(sim.sB),W*0.30,TOP+26,u,PHOS);
+    drawDigits(String(sim.sA),W*0.70,TOP+26,u,'#2997FF');
+    // paddles: CPU phosphor (left), agent blue (right); ball phosphor
+    cctx.fillStyle=PHOS; cctx.fillRect(LPX,sim.lp-PH/2,PW,PH);
+    cctx.fillStyle='#2997FF'; cctx.fillRect(RPX,sim.rp-PH/2,PW,PH);
+    cctx.fillStyle=PHOS; cctx.fillRect(sim.bx-BS/2,sim.by-BS/2,BS,BS);
+  }
+
+  function drawCurve(){
+    const w=curveCv.clientWidth,h=curveCv.clientHeight;
+    gctx.clearRect(0,0,w,h);
+    const pL=34,pR=12,pT=10,pB=16;
+    const X=e=>pL+(e/EPISODES)*(w-pL-pR), Y=r=>pT+(1-(r+21)/42)*(h-pT-pB);
+    gctx.font='10px ui-monospace,monospace'; gctx.textAlign='right';
+    [-21,0,21].forEach(rv=>{ const yy=Y(rv);
+      gctx.strokeStyle='rgba(255,255,255,0.07)'; gctx.lineWidth=1;
+      gctx.beginPath(); gctx.moveTo(pL,yy); gctx.lineTo(w-pR,yy); gctx.stroke();
+      gctx.fillStyle='#6E6E73'; gctx.fillText((rv>0?'+':'')+rv,pL-6,yy+3); });
+    gctx.lineWidth=2; gctx.strokeStyle='rgba(255,255,255,0.26)'; gctx.beginPath();
+    for(let e=0;e<=EPISODES;e++){const xx=X(e),yy=Y(curve[e]);e?gctx.lineTo(xx,yy):gctx.moveTo(xx,yy);} gctx.stroke();
+    const eT=t*EPISODES;
+    gctx.lineWidth=2.6; gctx.strokeStyle='#2997FF'; gctx.beginPath();
+    for(let e=0;e<=eT;e++){const xx=X(e),yy=Y(curve[e]);e?gctx.lineTo(xx,yy):gctx.moveTo(xx,yy);} gctx.stroke();
+    const px=X(eT),py=Y(rewardAt(t));
+    gctx.strokeStyle='rgba(41,151,255,0.35)'; gctx.lineWidth=1; gctx.beginPath(); gctx.moveTo(px,pT); gctx.lineTo(px,h-pB); gctx.stroke();
+    gctx.fillStyle='rgba(41,151,255,0.18)'; gctx.beginPath(); gctx.arc(px,py,9,0,7); gctx.fill();
+    gctx.fillStyle='#2997FF'; gctx.beginPath(); gctx.arc(px,py,4.5,0,7); gctx.fill();
+  }
+
+  // ---- HUD ----
+  const elEp=document.getElementById('ep'),elEps=document.getElementById('eps'),
+        elPhase=document.getElementById('phase'),elRwLabel=document.getElementById('rwLabel');
+  function fmt(n){return (n<0?'\u2212':'')+Math.abs(n).toFixed(1);}
+  function hud(){
+    const r=rewardAt(t);
+    elEp.textContent=Math.round(t*EPISODES); elRwLabel.textContent=fmt(r);
+    elEps.textContent=Math.max(0.05,1-t*1.15).toFixed(2);
+    elPhase.textContent = r>=10?'Mastery':(r>-12?'Breakthrough':'Exploration');
+  }
+
+  // ---- instruments: representative Q-values and value estimate ----
+  function instruments(dt){
+    const sk=skillAt(t);
+    // Q-values: preference to move toward the ball; separation sharpens with training
+    const d=Math.max(-1,Math.min(1,(sim.by-sim.rp)/(H*0.42)));
+    const sep=0.12+0.88*sk;
+    const tU=0.5+0.5*(-d)*sep, tD=0.5+0.5*(d)*sep, tS=0.5+0.5*(0.45-0.95*Math.abs(d))*sep;
+    const k=Math.min(1,0.18*dt);
+    sim.qU+=(tU-sim.qU)*k; sim.qS+=(tS-sim.qS)*k; sim.qD+=(tD-sim.qD)*k;
+    // Value: skill baseline, nudged by what's about to happen (so it leads the outcome)
+    let vT=0.5+0.45*(2*sk-1);
+    if(sim.vx>0) vT += sim.aHit?0.12:-0.42;      // ball to agent: about to return or miss
+    else         vT += sim.bHit?-0.04:0.34;      // ball to CPU: CPU returns or about to miss
+    vT=Math.max(0.02,Math.min(0.98,vT));
+    sim.V+=(vT-sim.V)*Math.min(1,0.05*dt);
+  }
+  function drawQ(){
+    const w=qCv.clientWidth,h=qCv.clientHeight; qx.clearRect(0,0,w,h);
+    const acts=[['UP',sim.qU],['STAY',sim.qS],['DOWN',sim.qD]];
+    const maxi=acts[0][1]>=acts[1][1]&&acts[0][1]>=acts[2][1]?0:(acts[1][1]>=acts[2][1]?1:2);
+    const padB=16, top=6, bw=Math.min(64,(w-20)/3-14), gap=(w-20-bw*3)/2, base=h-padB;
+    acts.forEach((a,i)=>{
+      const x=10+i*(bw+gap), bh=(h-padB-top)*Math.max(0.04,a[1]);
+      qx.fillStyle = i===maxi?'#2997FF':'rgba(255,255,255,0.22)';
+      qx.fillRect(x,base-bh,bw,bh);
+      qx.fillStyle = i===maxi?'#cfe4ff':'#7E8A99';
+      qx.font='10px ui-monospace,monospace'; qx.textAlign='center';
+      qx.fillText(a[0],x+bw/2,h-4);
+    });
+  }
+  function drawV(){
+    const w=vCv.clientWidth,h=vCv.clientHeight; vx2.clearRect(0,0,w,h);
+    const padX=12, y=Math.round(h*0.42), bh=12, tw=w-padX*2;
+    // track
+    vx2.fillStyle='#232529'; vx2.fillRect(padX,y,tw,bh);
+    // center (even) mark
+    vx2.fillStyle='rgba(255,255,255,0.22)'; vx2.fillRect(padX+tw/2-1,y-4,2,bh+8);
+    // fill
+    const v=sim.V; vx2.fillStyle = v>=0.5?'#2997FF':'#FF6B6B';
+    if(v>=0.5) vx2.fillRect(padX+tw/2, y, (v-0.5)*tw, bh);
+    else        vx2.fillRect(padX+v*tw, y, (0.5-v)*tw, bh);
+    // marker
+    vx2.fillStyle='#fff'; vx2.fillRect(padX+v*tw-1.5,y-3,3,bh+6);
+    // labels
+    vx2.font='10px ui-monospace,monospace'; vx2.fillStyle='#7E8A99';
+    vx2.textAlign='left'; vx2.fillText('losing',padX,h-7);
+    vx2.textAlign='right'; vx2.fillText('winning',w-padX,h-7);
+    vx2.textAlign='center'; vx2.fillStyle = v>=0.5?'#9ccbff':'#ff9d9d';
+    vx2.fillText(Math.round(v*100)+'% win',w/2,y-9);
+  }
+
+  // ---- loop / controls ----
+  const scrub=document.getElementById('scrub'),play=document.getElementById('play');
+  let playing=false,last=performance.now();
+  let tween=null; // {to}
+  function setFill(){ scrub.style.setProperty('--p',(t*100)+'%'); }
+  function loop(now){
+    const dt=Math.min(2.5,(now-last)/16.67); last=now;
+    if(tween!==null){ t+=(tween-t)*Math.min(1,0.06*dt); if(Math.abs(tween-t)<0.004){t=tween;tween=null;} scrub.value=Math.round(t*1000); setFill(); }
+    else if(playing){ t+=0.0010*dt; if(t>=1){t=1;playing=false;play.innerHTML='&#8635;';} scrub.value=Math.round(t*1000); setFill(); }
+    for(let i=0;i<7;i++) step(dt/7);
+    instruments(dt);
+    drawCourt(); drawCurve(); drawQ(); drawV(); hud();
+    requestAnimationFrame(loop);
+  }
+  play.addEventListener('click',()=>{ if(t>=1){t=0;sim.sA=sim.sB=0;} playing=!playing; tween=null; play.innerHTML=playing?'&#10073;&#10073;':'&#9654;'; });
+  scrub.addEventListener('input',()=>{ t=scrub.value/1000; setFill(); sim.sA=sim.sB=0; playing=false; tween=null; play.innerHTML='&#9654;'; });
+
+  const soundBtn=document.getElementById('sound');
+  const ICON_ON='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
+  const ICON_OFF='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
+  soundBtn.addEventListener('click',()=>{
+    soundOn=!soundOn;
+    if(soundOn){ ensureAudio(); soundBtn.classList.add('on'); soundBtn.innerHTML=ICON_ON+' OG Sound'; soundBtn.title='Sound on'; }
+    else { soundBtn.classList.remove('on'); soundBtn.innerHTML=ICON_OFF+' OG Sound'; soundBtn.title='Hear the original Pong sound'; }
+  });
+
+  // ---- guided tour (animated spotlight) ----
+  const TOUR=[
+    {sel:'.tv', to:0.05, title:'Raw pixels, nothing else',
+     body:"The agent sees only this screen \u2014 the same monochrome Pong an Atari player saw in the 1970s. No score feed, no coordinates, no game state. Just pixels, like DeepMind's original DQN."},
+    {sel:'.controls', to:0.05, title:'Training time',
+     body:"This slider is how much the agent has trained. It's at the very start \u2014 episode 0, random flailing. Keep watching: the tour trains it for you."},
+    {sel:'.curve-wrap', to:0.55, title:'The learning curve',
+     body:"Average reward per episode. Flat near \u221221 for a long time, then it climbs \u2014 the breakthrough. The blue playhead is the exact moment on screen."},
+    {sel:'#qpanel', to:0.55, title:'The decision \u2014 Q-values',
+     body:"The network scores each action (UP / STAY / DOWN) and takes the best. Untrained they're flat and unsure; as it learns, one spikes \u2014 a policy forming. The \u201cQ\u201d in DQN."},
+    {sel:'#vpanel', to:0.72, title:'The expectation \u2014 value',
+     body:"The agent's own estimate of winning this point. The tell: it moves just ahead of the outcome \u2014 confidence rising a beat before it puts the ball away."},
+    {sel:'.tv', to:0.97, title:'Trained, from scratch',
+     body:"At the end it shuts the CPU out \u2014 learned from raw pixels alone. Drag the slider yourself to move anywhere along the journey."}
+  ];
+  const tourStart=document.getElementById('tourStart');
+  let ti=-1, curEl=null, tRoot=null, spot=null, tcard=null, rafT=0, autoOn=false, autoTimer=0;
+  function buildTour(){
+    tRoot=document.createElement('div'); tRoot.id='tour';
+    spot=document.createElement('div'); spot.className='tour-spot';
+    tcard=document.createElement('div'); tcard.className='tour-card';
+    tRoot.appendChild(spot); tRoot.appendChild(tcard); document.body.appendChild(tRoot);
+  }
+  function track(){
+    if(ti<0) return;
+    if(curEl){ const r=curEl.getBoundingClientRect(), p=7;
+      spot.style.left=(r.left-p)+'px'; spot.style.top=(r.top-p)+'px';
+      spot.style.width=(r.width+2*p)+'px'; spot.style.height=(r.height+2*p)+'px'; }
+    rafT=requestAnimationFrame(track);
+  }
+  function placeCard(){
+    if(!curEl) return;
+    const r=curEl.getBoundingClientRect();
+    if(r.top+r.height/2 > innerHeight*0.5){ tcard.style.top='26px'; tcard.style.bottom='auto'; }
+    else { tcard.style.bottom='26px'; tcard.style.top='auto'; }
+  }
+  function scheduleAuto(){ clearTimeout(autoTimer); if(!autoOn) return;
+    autoTimer=setTimeout(()=>{ ti<TOUR.length-1?showStep(ti+1):endTour(); }, 6500); }
+  function showStep(i){
+    ti=i; const st=TOUR[i], last=i===TOUR.length-1;
+    tween=st.to; sim.sA=sim.sB=0; playing=false; play.innerHTML='&#9654;';
+    curEl=document.querySelector(st.sel);
+    if(curEl) curEl.scrollIntoView({block:'center',behavior:'smooth'});
+    tcard.innerHTML=
+      '<button class="tour-x" aria-label="Close">&times;</button>'+
+      '<div class="tour-step">Step '+(i+1)+' / '+TOUR.length+'</div>'+
+      '<div class="tour-title">'+st.title+'</div>'+
+      '<div class="tour-body">'+st.body+'</div>'+
+      '<div class="tour-nav">'+
+        '<button class="prev"'+(i===0?' disabled':'')+'>Back</button>'+
+        '<button class="next">'+(last?'Finish':'Next')+'</button>'+
+        '<span class="spacer"></span>'+
+        '<label class="tour-auto"><input type="checkbox" id="tourAuto"'+(autoOn?' checked':'')+'> auto</label>'+
+      '</div>';
+    tcard.querySelector('.tour-x').onclick=endTour;
+    tcard.querySelector('.next').onclick=()=> last?endTour():showStep(i+1);
+    tcard.querySelector('.prev').onclick=()=>{ if(i>0) showStep(i-1); };
+    tcard.querySelector('#tourAuto').onchange=e=>{ autoOn=e.target.checked; scheduleAuto(); };
+    setTimeout(placeCard,360);
+    scheduleAuto();
+  }
+  function startTour(){ if(!tRoot) buildTour(); tRoot.classList.add('on'); ti=0; cancelAnimationFrame(rafT); track(); showStep(0); }
+  function endTour(){ ti=-1; clearTimeout(autoTimer); cancelAnimationFrame(rafT); if(tRoot) tRoot.classList.remove('on'); }
+  tourStart.addEventListener('click',startTour);
+  document.addEventListener('keydown',e=>{ if(ti<0)return;
+    if(e.key==='Escape') endTour();
+    else if(e.key==='ArrowRight'){ ti<TOUR.length-1?showStep(ti+1):endTour(); }
+    else if(e.key==='ArrowLeft' && ti>0) showStep(ti-1);
+  });
+
+  resizeAll(); setFill(); requestAnimationFrame(loop);
+})();
+</script>
+<script>
+/* When embedded, report content height to the parent so the iframe can auto-size. */
+(function(){
+  if(window.parent===window) return;
+  function post(){ try{ parent.postMessage({pongHeight:document.body.scrollHeight},'*'); }catch(e){} }
+  window.addEventListener('load',post);
+  window.addEventListener('resize',post);
+  try{ new ResizeObserver(post).observe(document.body); }catch(e){}
+  setTimeout(post,300); setTimeout(post,1200);
+})();
+</script>
+</body>
+</html>

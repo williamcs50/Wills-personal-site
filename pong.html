@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pong from Pixels — William Opyrchal</title>
+  <meta name="description" content="Reproducing deep reinforcement learning's foundational result — a deep Q-network that learns to play Pong from raw pixels — hand-built end to end on a 6 GB GPU, to understand how the method actually works." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://williamopyrchal.com/pong.html" />
+  <meta property="og:title" content="Pong from Pixels — Learning Deep RL from the Ground Up" />
+  <meta property="og:description" content="A deep Q-network learning Pong from raw pixels, hand-built end to end — starting where deep reinforcement learning started." />
+  <meta property="og:image" content="https://williamopyrchal.com/og-pong.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Pong from Pixels — Learning Deep RL from the Ground Up" />
+  <meta name="twitter:description" content="A deep Q-network learning Pong from raw pixels, hand-built end to end — starting where deep RL started." />
+  <meta name="twitter:image" content="https://williamopyrchal.com/og-pong.png" />
+
+  <style>
+    :root {
+      --bg: #16181C;             /* deep near-black (like Apple's iPhone dark pages) */
+      --bg-alt: #1D1F23;
+      --bg-section: #232529;
+      --ink: #F5F5F7;
+      --ink-2: #C7C7CC;
+      --muted: #98989D;
+      --faint: #6E6E73;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.06);
+      --link: #2997FF;           /* Apple system blue, dark-mode variant */
+      --link-hover: #5AB0FF;
+      --accent: #2997FF;
+      --code-bg: #0F1115;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+              "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+    .container-narrow {
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    /* ---------- Nav ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(22, 24, 28, 0.78);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: color 160ms ease;
+    }
+    .nav-back:hover { color: var(--ink); }
+    .nav-back .chev { transform: translateY(-1px); }
+    .nav-brand {
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .nav-spacer { width: 80px; }   /* visual balance */
+
+    /* ---------- Type ---------- */
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      font-weight: 600;
+      font-size: clamp(40px, 6vw, 80px);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+      margin: 0;
+    }
+    h2 {
+      font-weight: 600;
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      color: var(--ink);
+      margin: 0;
+    }
+    h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--link);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .lede {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: 0.004em;
+      line-height: 1.35;
+    }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .hero-inner > * {
+      opacity: 0;
+      transform: translateY(28px);
+      animation: heroIn 1100ms cubic-bezier(.16,.84,.3,1) forwards;
+    }
+    .hero-inner > *:nth-child(1) { animation-delay: 80ms; }
+    .hero-inner > *:nth-child(2) { animation-delay: 220ms; }
+    .hero-inner > *:nth-child(3) { animation-delay: 380ms; }
+    .hero-inner > *:nth-child(4) { animation-delay: 560ms; }
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+
+    .hero h1 { max-width: 20ch; margin-bottom: 22px; }
+    .hero .lede { max-width: 56ch; margin-bottom: 28px; }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .hero-meta strong {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+
+    /* ---------- Sections ---------- */
+    .section { padding: 100px 0; border-bottom: 1px solid var(--line-soft); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+
+    /* ---------- Prose ---------- */
+    .prose { max-width: 680px; }
+    .prose p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 24px;
+      letter-spacing: -0.01em;
+    }
+    .prose p strong { color: var(--ink); font-weight: 600; }
+    .prose p em { color: var(--ink); font-style: italic; }
+    .prose ul {
+      margin: 0 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .prose li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+    .prose li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 12px;
+      width: 8px; height: 1px;
+      background: var(--muted);
+    }
+    .prose code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+
+    /* ---------- Code block ---------- */
+    .code-block {
+      margin: 12px 0 32px;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      overflow-x: auto;
+      letter-spacing: 0;
+    }
+    .code-block .comment { color: var(--faint); }
+    .code-block .keyword { color: #FF6B7A; }
+    .code-block .num { color: #FFA94D; }
+
+    /* ---------- Pull-quote / callout ---------- */
+    .callout {
+      margin: 32px 0;
+      padding: 24px 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-alt);
+      border-radius: 0 12px 12px 0;
+    }
+    .callout p {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .callout .attribution {
+      display: block;
+      margin-top: 14px;
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    /* ---------- Stat row (key findings) ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 32px;
+    }
+    .stat {
+      background: var(--bg);
+      padding: 28px 24px;
+    }
+    .stat-number {
+      font-size: clamp(28px, 3.2vw, 40px);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin: 0 0 6px;
+      font-feature-settings: "tnum";
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Plot (inline SVG diagnostics) ---------- */
+    .plot {
+      margin: 16px 0 32px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 8px 8px 4px;
+      overflow: hidden;
+    }
+    .plot svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      background: var(--code-bg);
+    }
+    .plot-caption {
+      margin: 14px 14px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0;
+      line-height: 1.5;
+    }
+
+    /* ---------- Stack section (dark variant of skills) ---------- */
+    .stack-section { background: var(--bg-alt); padding: 80px 0; border-bottom: 1px solid var(--line-soft); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .stack-meta h2 { font-size: clamp(28px, 3vw, 36px); }
+    .stack-meta p { color: var(--muted); font-size: 16px; margin: 14px 0 0; }
+    .stack-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 36px;
+    }
+    .stack-cat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .stack-list { list-style: none; padding: 0; margin: 0; }
+    .stack-list li {
+      font-size: 15px;
+      color: var(--ink);
+      padding: 7px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Links section ---------- */
+    .links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .link-card {
+      display: block;
+      padding: 24px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .link-card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .link-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0 0 4px;
+    }
+    .link-card-meta {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .link-card .arrow {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* ---------- Prev / Next ---------- */
+    .pager {
+      padding: 64px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .pager-link {
+      display: block;
+      padding: 28px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .pager-link:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .pager-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pager-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0;
+    }
+    .pager-link.next { text-align: right; }
+
+    /* ---------- Footer ---------- */
+    footer {
+      padding: 28px 0 36px;
+      background: var(--bg);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 880px) {
+      .stack-grid { grid-template-columns: 1fr; gap: 32px; }
+      .stack-categories { grid-template-columns: 1fr; gap: 24px; }
+      .stats { grid-template-columns: 1fr; }
+      .links { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .hero { padding: 64px 0 56px; }
+    }
+    @media (max-width: 640px) {
+      .pager { grid-template-columns: 1fr; }
+      .pager-link.next { text-align: left; }
+      h1 { font-size: clamp(34px, 9vw, 48px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .hero-inner > * { opacity: 1; transform: none; }
+    }
+
+    /* ---------- Primary button ---------- */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      padding: 13px 24px;
+      border-radius: 980px;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    }
+    .btn-primary:hover {
+      background: var(--link-hover);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(41, 151, 255, 0.28);
+    }
+    .btn-primary .pl { font-size: 12px; transform: translateY(0.5px); }
+
+    /* ---------- Hero demo embed ---------- */
+    .hero-inner > *:nth-child(5) { animation-delay: 720ms; }
+    .hero-demo { margin-top: 44px; }
+    .demo-frame {
+      position: relative;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #06090E;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+    }
+    .demo-chrome {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 15px;
+      background: rgba(8, 12, 18, 0.92);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .demo-chrome .dot { width: 10px; height: 10px; border-radius: 50%; background: #2A2F37; }
+    .demo-chrome .url {
+      margin-left: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--faint);
+      letter-spacing: 0;
+    }
+    .demo-stage { position: relative; width: 100%; overflow: hidden; }
+    .demo-scaler { position: absolute; top: 0; left: 0; transform-origin: top left; }
+    .demo-scaler iframe { width: 1280px; height: 720px; border: 0; display: block; }
+    .demo-poster {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      background:
+        radial-gradient(120% 90% at 72% 16%, rgba(67, 176, 166, 0.18), transparent 60%),
+        radial-gradient(90% 120% at 20% 90%, rgba(41, 151, 255, 0.13), transparent 55%),
+        linear-gradient(180deg, #0A0F16, #06090E);
+    }
+    .demo-poster .ring-motif { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; }
+    .demo-poster .pcontent {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .demo-poster .plabel {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #7FD8CF;
+      margin: 0;
+    }
+    .demo-poster .ptitle {
+      font-size: clamp(19px, 2.2vw, 25px);
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      max-width: 22ch;
+      margin: 0;
+    }
+    .demo-poster .phint {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--faint);
+      margin: 2px 0 0;
+    }
+    .demo-frame.loaded .demo-poster { display: none; }
+
+    /* ---------- The interface (UI beats) ---------- */
+    .ui-beats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 36px;
+    }
+    .ui-beat { background: var(--bg); padding: 26px 24px 28px; }
+    .ui-beat .bn {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      margin: 0 0 14px;
+    }
+    .ui-beat h3 { margin: 0 0 8px; font-size: 18px; }
+    .ui-beat p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--muted); letter-spacing: -0.01em; }
+
+    @media (max-width: 880px) {
+      .ui-beats { grid-template-columns: 1fr; }
+    }
+    /* ---------- Feynman blackboard figure ---------- */
+    .feynman { margin: 22px 0 4px; }
+    .feynman img { display: block; width: 100%; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+    .feynman figcaption { margin: 16px 2px 0; font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0; line-height: 1.55; }
+    .feynman figcaption strong { color: var(--ink-2); font-weight: 600; }
+
+    /* ---------- Build-vs-import spine ---------- */
+    .spine { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 8px; }
+    .spine-col { background: var(--bg-alt); border: 1px solid var(--line); border-radius: 16px; padding: 24px 26px 26px; }
+    .spine-col.built { border-color: rgba(41,151,255,0.34); }
+    .spine-label { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); }
+    .spine-col.built .spine-label { color: var(--accent); }
+    .spine-col.imported .spine-label { color: var(--muted); }
+    .spine-list { list-style: none; padding: 0; margin: 0; }
+    .spine-list li { font-size: 15px; color: var(--ink); padding: 9px 0; letter-spacing: -0.01em; border-bottom: 1px solid var(--line-soft); }
+    .spine-list li:last-child { border-bottom: none; }
+    .spine-list li span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; letter-spacing: -0.005em; }
+    @media (max-width: 640px) { .spine { grid-template-columns: 1fr; } }
+
+    /* ---------- Pong interactive embed (responsive, auto-height) ---------- */
+    .pong-stage { position: relative; width: 100%; background: #16181C; }
+    .pong-stage iframe { width: 100%; height: 1180px; border: 0; display: block; background: #16181C; transition: height 180ms ease; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <nav class="container">
+      <a class="nav-back" href="index.html"><span class="chev">&lsaquo;</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-inner">
+        <p class="eyebrow">Case Study &middot; 05</p>
+        <h1>Pong from Pixels.</h1>
+        <p class="lede">
+          In 2013, a single neural network learned to play Atari games from nothing but the
+          screen &mdash; the first time deep reinforcement learning worked at that scale, Pong
+          among the games. I&rsquo;m rebuilding that result from the ground up to actually
+          understand how it works: a deep Q-network that learns Pong from raw pixels, hand-built
+          end to end on a 6&nbsp;GB GPU.
+        </p>
+        <div class="hero-meta">
+          <span><strong>Stack:</strong> Python &middot; PyTorch &middot; Gymnasium &middot; CUDA</span>
+          <span><strong>Period:</strong> 2026</span>
+          <span><strong>Status:</strong> in progress &middot; phase 3 of 5</span>
+        </div>
+        <div class="hero-demo">
+          <div class="demo-frame" id="demoFrame">
+            <div class="demo-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">pong from pixels &mdash; interactive</span>
+            </div>
+            <div class="pong-stage">
+              <iframe id="pongFrame" title="Pong from Pixels &mdash; interactive learning concept"
+                      loading="lazy" src="pong-learning-concept.html"></iframe>
+            </div>
+          </div>
+          <p class="plot-caption" style="margin:14px 2px 0;">
+            Drag the slider to train the agent &middot; guided tour &middot; toggle the original sound.
+            Illustrative concept &mdash; representative animation and curve until the real training run&rsquo;s
+            data is dropped in.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHY PONG -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Why Pong</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Starting where the field started.</h2>
+          <p>
+            Deep reinforcement learning has a clear origin point. In 2013, DeepMind published a
+            network that learned to play Atari games directly from the pixels of the screen, using
+            deep Q-learning; the 2015 follow-up in <em>Nature</em> showed it reaching human-level
+            play across many of those games. Pong was one of them. It was the first time a single
+            architecture learned control from raw images at that scale.
+          </p>
+          <p>
+            That result is the root of a lineage. The same lab went on to AlphaGo, then AlphaZero,
+            then AlphaFold &mdash; work that reshaped its fields. You don&rsquo;t need a novel idea to
+            learn from the most important one; you need to <strong>rebuild it and watch it work</strong>.
+            Reproducing Pong-from-pixels is a deliberate choice to begin a deep-RL education at the
+            beginning of deep RL.
+          </p>
+          <p>
+            This is an homage and a reproduction, not a claim of novelty or any affiliation &mdash;
+            the goal is understanding earned by construction. It&rsquo;s the idea that was still on
+            Richard Feynman&rsquo;s blackboard when he died, and one of the convictions this project
+            is built around.
+          </p>
+        </div>
+        <figure class="feynman">
+          <img src="feynman-blackboard.jpg" alt="Chalk handwriting on a blackboard reading: What I cannot create, I do not understand." />
+          <figcaption>&ldquo;What I cannot create, I do not understand.&rdquo; &mdash; <strong>Richard Feynman</strong>&rsquo;s blackboard, 1988</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- APPROACH: BUILD VS IMPORT -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Approach</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Build the parts that teach. Import the parts that don&rsquo;t.</h2>
+          <p>
+            The fastest way to learn deep RL is also the least honest: import a library, call
+            <code>agent.train()</code>, and watch a number go up. The slowest is to write the GPU
+            kernels yourself. Neither teaches the right thing. So the line is drawn deliberately
+            &mdash; the conceptual core is hand-written, and the commodity machinery underneath is
+            imported and named as such.
+          </p>
+        </div>
+        <div class="spine">
+          <div class="spine-col built">
+            <p class="spine-label">Hand-built &mdash; the lesson</p>
+            <ul class="spine-list">
+              <li>Q-network &amp; action selection<span>forward pass, greedy / &epsilon;-greedy choice</span></li>
+              <li>Experience replay buffer<span>store transitions, sample decorrelated minibatches</span></li>
+              <li>Exploration schedule<span>&epsilon; annealed from explore to exploit</span></li>
+              <li>Training loop &amp; TD target<span>target network, Bellman backup, gradient step</span></li>
+              <li>Frame preprocessing<span>grayscale, downsample, 4-frame stack</span></li>
+            </ul>
+          </div>
+          <div class="spine-col imported">
+            <p class="spine-label">Imported &mdash; commodity</p>
+            <ul class="spine-list">
+              <li>Atari emulator<span>Gymnasium / ALE environment</span></li>
+              <li>Conv layers &amp; autograd<span>PyTorch tensors and backprop</span></li>
+              <li>Optimizer<span>Adam</span></li>
+              <li>GPU kernels<span>CUDA / cuDNN</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Architecture</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">From 210&times;160 pixels to a move.</h2>
+          <p>
+            Each Atari frame arrives as a 210&times;160 colour image. It&rsquo;s converted to
+            grayscale, downsampled to 84&times;84, and the last four frames are stacked so the
+            network can see motion &mdash; which way the ball is travelling, and how fast. That
+            stack is the only input. There is no score feed, no ball coordinates, no hand-built
+            features.
+          </p>
+          <p>
+            A small convolutional network maps that 84&times;84&times;4 stack to one value per
+            action &mdash; the expected return, or <em>Q-value</em>, of moving up, staying, or moving
+            down. The agent mostly takes the highest-value action and occasionally explores at
+            random. Each transition is stored; minibatches are replayed to break correlation; and a
+            slowly-updated copy of the network (the <strong>target network</strong>) provides a
+            stable learning signal:
+          </p>
+          <div class="code-block"><span class="comment"># one gradient step (Deep Q-learning)</span>
+q       = net(states).gather(<span class="num">1</span>, actions)        <span class="comment"># Q(s, a)</span>
+<span class="keyword">with</span> torch.no_grad():
+    next_q = target_net(next_states).max(<span class="num">1</span>).values
+    y      = rewards + gamma * next_q * (<span class="num">1</span> - done)   <span class="comment"># Bellman target</span>
+loss = smooth_l1_loss(q, y)                       <span class="comment"># Huber loss</span>
+loss.backward(); opt.step()                       <span class="comment"># SGD on the temporal-difference error</span></div>
+          <p>
+            The whole thing has to fit and train on a single RTX&nbsp;2060 with 6&nbsp;GB of memory,
+            which shapes everything downstream &mdash; the replay buffer size, the batch size, and how
+            long a run realistically takes.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE INTERFACE -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">The interface</p>
+        <h2 style="max-width: 22ch; margin-bottom: 18px;">One playhead, the whole story.</h2>
+        <p class="lede" style="max-width: 64ch; color: var(--ink-2); margin-bottom: 36px;">
+          The demo above is a single control &mdash; how much the agent has trained &mdash; wired to
+          everything at once, so the abstract idea of &ldquo;learning&rdquo; becomes something you can
+          watch and hear.
+        </p>
+        <div class="ui-beats">
+          <div class="ui-beat">
+            <p class="bn">01</p>
+            <h3>The game</h3>
+            <p>A monochrome CRT Pong, rendered to look like the 1970s original. The agent is the
+              blue paddle, learning from the screen alone.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">02</p>
+            <h3>The learning curve</h3>
+            <p>Average reward per episode &mdash; flat near &minus;21, then the breakthrough climb. The
+              playhead marks the exact moment shown on screen.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">03</p>
+            <h3>The decision</h3>
+            <p>Q-values for up / stay / down. Untrained they&rsquo;re flat and unsure; trained, one
+              spikes &mdash; a policy forming in real time.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">04</p>
+            <h3>The expectation</h3>
+            <p>The value estimate &mdash; the agent&rsquo;s own read on whether it will win the point.
+              It moves a beat ahead of the outcome.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">05</p>
+            <h3>Guided tour</h3>
+            <p>A self-running walkthrough that trains the agent for you, spotlighting each part as it
+              explains what you&rsquo;re seeing.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">06</p>
+            <h3>OG sound</h3>
+            <p>The original&rsquo;s three blips &mdash; paddle, wall, point &mdash; synthesized live, off
+              by default. Worth turning on.</p>
+          </div>
+        </div>
+        <div class="prose" style="margin-top: 8px;">
+          <p>
+            Everything in the demo is currently <strong>representative</strong> &mdash; a stand-in curve
+            and a hand-tuned agent &mdash; clearly labelled as such. The shipped version swaps in the
+            real per-episode reward log and recorded gameplay at each training checkpoint, so the
+            playhead scrubs between snapshots of the actual agent.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROCESS -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Process</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Four-hour Saturdays, floor and aspiration.</h2>
+          <p>
+            The project runs on a fixed cadence: one four-hour block a week. Each session is
+            pre-registered with two targets written down before it starts &mdash; a <strong>floor</strong>
+            (what must be true by the end) and an <strong>aspiration</strong> (the stretch). Writing
+            both down in advance is the point: a missed aspiration isn&rsquo;t failure, it&rsquo;s
+            information about where the estimate was wrong.
+          </p>
+          <p>
+            Three of the five phases are done &mdash; kickoff, architecture, and the core build (network,
+            replay buffer, agent, and training loop, all assembled and running). The next phase is
+            training and diagnosis: getting it to actually converge, and being honest about what that
+            takes. Shipping the finished page is the last.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHAT'S LEFT -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">What&rsquo;s left</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Get it to convergence &mdash; then tell the truth about how.</h2>
+          <ul>
+            <li>Train the agent until it reliably beats the built-in opponent, on the 6&nbsp;GB card.</li>
+            <li>Log per-episode reward to disk, so the real learning curve replaces the representative one.</li>
+            <li>Checkpoint the model at milestones &mdash; random, first rally, breakthrough, trained &mdash;
+              and record a short gameplay clip at each, so the demo&rsquo;s slider scrubs through real footage.</li>
+            <li>Instrument the internals: Q-value drift, the &epsilon; schedule, replay dynamics, plus
+              wall-clock, VRAM, and GPU temperature per run.</li>
+            <li>Write up what actually worked and what didn&rsquo;t &mdash; including the dead ends, which are
+              the part most write-ups quietly drop.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section class="stack-section">
+      <div class="container">
+        <div class="stack-grid">
+          <div class="stack-meta">
+            <p class="section-eyebrow" style="margin-bottom: 16px;">Stack</p>
+            <h2>What&rsquo;s under the hood.</h2>
+            <p>Standard, modern deep-RL tooling &mdash; with the conceptual core written by hand
+              rather than pulled from a library.</p>
+          </div>
+          <div class="stack-categories">
+            <div>
+              <p class="stack-cat-label">Environment</p>
+              <ul class="stack-list">
+                <li>Gymnasium / ALE</li>
+                <li>Atari Pong</li>
+                <li>84&times;84&times;4 preprocessing</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Network</p>
+              <ul class="stack-list">
+                <li>PyTorch</li>
+                <li>Convolutional Q-network</li>
+                <li>Target network</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Training</p>
+              <ul class="stack-list">
+                <li>Experience replay</li>
+                <li>&epsilon;-greedy exploration</li>
+                <li>Adam &middot; Huber loss</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Hardware</p>
+              <ul class="stack-list">
+                <li>RTX 2060 &middot; 6 GB</li>
+                <li>CUDA / cuDNN</li>
+                <li>Single-GPU run</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARTIFACTS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Artifacts</p>
+        <h2 style="max-width: 18ch;">The work, in public.</h2>
+        <div class="links">
+          <a class="link-card" href="pong-learning-concept.html">
+            <p class="link-card-label">Demo</p>
+            <p class="link-card-title">Interactive learning concept</p>
+            <p class="link-card-meta">Drag to train &middot; synced curve, Q-values &amp; value &middot; guided tour &middot; OG sound</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/pong-from-pixels" target="_blank" rel="noopener">
+            <p class="link-card-label">Code</p>
+            <p class="link-card-title">GitHub repository</p>
+            <p class="link-card-meta">Source &mdash; network, replay buffer, agent, and training loop</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/pong-from-pixels/blob/main/docs/sessions.md" target="_blank" rel="noopener">
+            <p class="link-card-label">Build log</p>
+            <p class="link-card-title">Saturday-by-Saturday</p>
+            <p class="link-card-meta">Each session&rsquo;s pre-registered floor and aspiration, and how it went</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREV / NEXT -->
+    <div class="container">
+      <nav class="pager">
+        <a class="pager-link prev" href="weather.html">
+          <p class="pager-label">&lsaquo; Previous</p>
+          <p class="pager-title">Weather Forecasting: Physics vs. ML</p>
+        </a>
+        <a class="pager-link next" href="orchestrator-case-study.html">
+          <p class="pager-label">Next case study &rsaquo;</p>
+          <p class="pager-title">Rocket Engine Health Orchestrator</p>
+        </a>
+      </nav>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>&copy; 2026 William Opyrchal</span>
+      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+    </div>
+  </footer>
+
+  <!--
+  ============================================================================
+  PONG FROM PIXELS — CASE STUDY (project 05)
+  ============================================================================
+  Built on the canonical turbofan.html template (same head/CSS), cloned via
+  orchestrator-case-study.html. Hero embeds pong-learning-concept.html in a
+  responsive, auto-height iframe (it posts its content height to this page).
+
+  HONEST-HOMAGE GUARDRAILS (kept):
+  - Framed as reproduction-to-learn. No fabricated quotes, no implied
+    affiliation with or endorsement by DeepMind. DeepMind's 2013/2015 work is
+    credited plainly and in my own words.
+  - The DQN → AlphaGo → AlphaFold lineage is described as the same lab's later
+    work, not as a causal claim about this project.
+
+  FOR WILL TO VERIFY / SWAP IN:
+  - Artifact links use github.com/williamcs50/pong-from-pixels (+ docs/build-log.md).
+    Confirm the repo name / paths, or update.
+  - og:image references og-pong.png — that asset still needs to be created and
+    hosted at williamopyrchal.com/og-pong.png (offer stands to generate it).
+  - feynman-blackboard.jpg (the "What I cannot create..." photo) is referenced in
+    the Why-Pong section and must be hosted alongside the page. Confirm usage
+    rights / add a photographer credit if required before publishing.
+  - The interactive is representative until Phase-4 training: swap in the real
+    per-episode reward CSV and recorded checkpoint clips (see "What's left").
+  - "Phase 3 of 5" status: keep in sync with the build log as phases complete.
+  -->
+  <script>
+    // Auto-size the embedded interactive to its content height.
+    (function () {
+      var f = document.getElementById('pongFrame');
+      if (!f) return;
+      window.addEventListener('message', function (e) {
+        var h = e && e.data && e.data.pongHeight;
+        if (typeof h === 'number' && h > 400) { f.style.height = Math.round(h) + 'px'; }
+      });
+    })();
+  </script>
+</body>
+</html>

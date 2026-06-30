@@ -311,29 +311,6 @@
       color: var(--faint);
       letter-spacing: -0.01em;
     }
-    .demo-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      align-self: flex-start;
-      font-family: var(--mono);
-      font-size: 10.5px;
-      font-weight: 500;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--link);
-      background: rgba(0, 102, 204, 0.08);
-      border: 1px solid rgba(0, 102, 204, 0.28);
-      border-radius: 980px;
-      padding: 4px 11px;
-    }
-    .demo-badge::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--link);
-    }
     .project-arrow {
       align-self: center;
       font-size: 18px;
@@ -580,30 +557,8 @@
       </div>
 
       <div class="project-list">
-        <a class="project-row" href="orchestrator-case-study.html">
-          <div class="project-index">01</div>
-          <div class="project-main">
-            <h3>Rocket Engine Health Orchestrator</h3>
-            <p class="project-pitch">
-              A rocket engine usually fails quietly first — vibration creeping up, a
-              temperature trending warm, a pressure easing down, each still inside its own
-              limit. Conventional redline monitoring is structurally blind to that. So I'm
-              building an advisory layer that reads the channels together and flags the
-              combined signature before any one of them breaks.
-            </p>
-          </div>
-          <div class="project-side">
-            <div class="stack">
-              <span>Python</span><span>PyTorch</span><span>Transformers</span><span>CNN</span><span>Three.js</span>
-            </div>
-            <p class="project-meta">2026 · in active development</p>
-            <span class="demo-badge">Interactive demo</span>
-          </div>
-          <div class="project-arrow">›</div>
-        </a>
-
         <a class="project-row" href="turbofan.html">
-          <div class="project-index">02</div>
+          <div class="project-index">01</div>
           <div class="project-main">
             <h3>Turbofan Predictive Maintenance</h3>
             <p class="project-pitch">
@@ -622,7 +577,7 @@
         </a>
 
         <a class="project-row" href="askmickey.html">
-          <div class="project-index">03</div>
+          <div class="project-index">02</div>
           <div class="project-main">
             <h3>AskMickey</h3>
             <p class="project-pitch">
@@ -641,7 +596,7 @@
         </a>
 
         <a class="project-row" href="weather.html">
-          <div class="project-index">04</div>
+          <div class="project-index">03</div>
           <div class="project-main">
             <h3>Weather Forecasting: Physics vs. ML</h3>
             <p class="project-pitch">
@@ -653,23 +608,6 @@
               <span>JavaScript</span><span>Python</span><span>NWS</span><span>Open-Meteo</span><span>BigQuery</span><span>ECMWF AIFS</span><span>DeepMind WeatherNext</span>
             </div>
             <p class="project-meta">2026 · live demo</p>
-          </div>
-          <div class="project-arrow">›</div>
-        </a>
-
-        <a class="project-row" href="pong.html">
-          <div class="project-index">05</div>
-          <div class="project-main">
-            <h3>Pong from Pixels</h3>
-            <p class="project-pitch">
-              A deep Q-network that learns Pong from nothing but the screen — no game state, just raw pixels — trained from scratch on a 6 GB consumer GPU. I'm hand-building the network, replay buffer, and training loop, and shipping the honest learning curve: the long flat stretch, the silent bugs, and the climb when it finally starts to see.
-            </p>
-          </div>
-          <div class="project-side">
-            <div class="stack">
-              <span>Python</span><span>PyTorch</span><span>Gymnasium</span><span>CUDA</span>
-            </div>
-            <p class="project-meta">2026 · in active development</p>
           </div>
           <div class="project-arrow">›</div>
         </a>
