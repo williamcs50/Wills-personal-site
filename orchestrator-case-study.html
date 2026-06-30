@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocket Engine Health Orchestrator — William Opyrchal</title>
+  <meta name="description" content="A research prototype for combinatorial fault detection in rocket engines: per-channel encoders fused by attention to catch coupled, sub-threshold faults that per-channel redlines miss." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://williamopyrchal.com/orchestrator-case-study.html" />
+  <meta property="og:title" content="Rocket Engine Health Orchestrator — Combinatorial Fault Detection" />
+  <meta property="og:description" content="Reading the sensor channels together to catch coupled, sub-threshold faults that conventional redline monitoring is structurally blind to. A research prototype, advisory above the engine's redline protection." />
+  <meta property="og:image" content="https://williamopyrchal.com/og-orchestrator.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Rocket Engine Health Orchestrator — Combinatorial Fault Detection" />
+  <meta name="twitter:description" content="Per-channel encoders fused by attention to catch coupled, sub-threshold faults a single redline would miss. A research prototype." />
+  <meta name="twitter:image" content="https://williamopyrchal.com/og-orchestrator.png" />
+
+  <style>
+    :root {
+      --bg: #16181C;             /* deep near-black (like Apple's iPhone dark pages) */
+      --bg-alt: #1D1F23;
+      --bg-section: #232529;
+      --ink: #F5F5F7;
+      --ink-2: #C7C7CC;
+      --muted: #98989D;
+      --faint: #6E6E73;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.06);
+      --link: #2997FF;           /* Apple system blue, dark-mode variant */
+      --link-hover: #5AB0FF;
+      --accent: #2997FF;
+      --code-bg: #0F1115;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+              "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+    .container-narrow {
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    /* ---------- Nav ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(22, 24, 28, 0.78);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: color 160ms ease;
+    }
+    .nav-back:hover { color: var(--ink); }
+    .nav-back .chev { transform: translateY(-1px); }
+    .nav-brand {
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .nav-spacer { width: 80px; }   /* visual balance */
+
+    /* ---------- Type ---------- */
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      font-weight: 600;
+      font-size: clamp(40px, 6vw, 80px);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+      margin: 0;
+    }
+    h2 {
+      font-weight: 600;
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      color: var(--ink);
+      margin: 0;
+    }
+    h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--link);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .lede {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: 0.004em;
+      line-height: 1.35;
+    }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .hero-inner > * {
+      opacity: 0;
+      transform: translateY(28px);
+      animation: heroIn 1100ms cubic-bezier(.16,.84,.3,1) forwards;
+    }
+    .hero-inner > *:nth-child(1) { animation-delay: 80ms; }
+    .hero-inner > *:nth-child(2) { animation-delay: 220ms; }
+    .hero-inner > *:nth-child(3) { animation-delay: 380ms; }
+    .hero-inner > *:nth-child(4) { animation-delay: 560ms; }
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+
+    .hero h1 { max-width: 20ch; margin-bottom: 22px; }
+    .hero .lede { max-width: 56ch; margin-bottom: 28px; }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .hero-meta strong {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+
+    /* ---------- Sections ---------- */
+    .section { padding: 100px 0; border-bottom: 1px solid var(--line-soft); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+
+    /* ---------- Prose ---------- */
+    .prose { max-width: 680px; }
+    .prose p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 24px;
+      letter-spacing: -0.01em;
+    }
+    .prose p strong { color: var(--ink); font-weight: 600; }
+    .prose p em { color: var(--ink); font-style: italic; }
+    .prose ul {
+      margin: 0 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .prose li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+    .prose li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 12px;
+      width: 8px; height: 1px;
+      background: var(--muted);
+    }
+    .prose code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+
+    /* ---------- Code block ---------- */
+    .code-block {
+      margin: 12px 0 32px;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      overflow-x: auto;
+      letter-spacing: 0;
+    }
+    .code-block .comment { color: var(--faint); }
+    .code-block .keyword { color: #FF6B7A; }
+    .code-block .num { color: #FFA94D; }
+
+    /* ---------- Pull-quote / callout ---------- */
+    .callout {
+      margin: 32px 0;
+      padding: 24px 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-alt);
+      border-radius: 0 12px 12px 0;
+    }
+    .callout p {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .callout .attribution {
+      display: block;
+      margin-top: 14px;
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    /* ---------- Stat row (key findings) ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 32px;
+    }
+    .stat {
+      background: var(--bg);
+      padding: 28px 24px;
+    }
+    .stat-number {
+      font-size: clamp(28px, 3.2vw, 40px);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin: 0 0 6px;
+      font-feature-settings: "tnum";
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Plot (inline SVG diagnostics) ---------- */
+    .plot {
+      margin: 16px 0 32px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 8px 8px 4px;
+      overflow: hidden;
+    }
+    .plot svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      background: var(--code-bg);
+    }
+    .plot-caption {
+      margin: 14px 14px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0;
+      line-height: 1.5;
+    }
+
+    /* ---------- Stack section (dark variant of skills) ---------- */
+    .stack-section { background: var(--bg-alt); padding: 80px 0; border-bottom: 1px solid var(--line-soft); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .stack-meta h2 { font-size: clamp(28px, 3vw, 36px); }
+    .stack-meta p { color: var(--muted); font-size: 16px; margin: 14px 0 0; }
+    .stack-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 36px;
+    }
+    .stack-cat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .stack-list { list-style: none; padding: 0; margin: 0; }
+    .stack-list li {
+      font-size: 15px;
+      color: var(--ink);
+      padding: 7px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Links section ---------- */
+    .links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .link-card {
+      display: block;
+      padding: 24px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .link-card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .link-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0 0 4px;
+    }
+    .link-card-meta {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .link-card .arrow {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* ---------- Prev / Next ---------- */
+    .pager {
+      padding: 64px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .pager-link {
+      display: block;
+      padding: 28px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .pager-link:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .pager-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pager-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0;
+    }
+    .pager-link.next { text-align: right; }
+
+    /* ---------- Footer ---------- */
+    footer {
+      padding: 28px 0 36px;
+      background: var(--bg);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 880px) {
+      .stack-grid { grid-template-columns: 1fr; gap: 32px; }
+      .stack-categories { grid-template-columns: 1fr; gap: 24px; }
+      .stats { grid-template-columns: 1fr; }
+      .links { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .hero { padding: 64px 0 56px; }
+    }
+    @media (max-width: 640px) {
+      .pager { grid-template-columns: 1fr; }
+      .pager-link.next { text-align: left; }
+      h1 { font-size: clamp(34px, 9vw, 48px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .hero-inner > * { opacity: 1; transform: none; }
+    }
+
+    /* ---------- Primary button ---------- */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      padding: 13px 24px;
+      border-radius: 980px;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    }
+    .btn-primary:hover {
+      background: var(--link-hover);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(41, 151, 255, 0.28);
+    }
+    .btn-primary .pl { font-size: 12px; transform: translateY(0.5px); }
+
+    /* ---------- Hero demo embed ---------- */
+    .hero-inner > *:nth-child(5) { animation-delay: 720ms; }
+    .hero-demo { margin-top: 44px; }
+    .demo-frame {
+      position: relative;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #06090E;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+    }
+    .demo-chrome {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 15px;
+      background: rgba(8, 12, 18, 0.92);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .demo-chrome .dot { width: 10px; height: 10px; border-radius: 50%; background: #2A2F37; }
+    .demo-chrome .url {
+      margin-left: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--faint);
+      letter-spacing: 0;
+    }
+    .demo-stage { position: relative; width: 100%; overflow: hidden; }
+    .demo-scaler { position: absolute; top: 0; left: 0; transform-origin: top left; }
+    .demo-scaler iframe { width: 1280px; height: 720px; border: 0; display: block; }
+    .demo-poster {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      background:
+        radial-gradient(120% 90% at 72% 16%, rgba(67, 176, 166, 0.18), transparent 60%),
+        radial-gradient(90% 120% at 20% 90%, rgba(41, 151, 255, 0.13), transparent 55%),
+        linear-gradient(180deg, #0A0F16, #06090E);
+    }
+    .demo-poster .ring-motif { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; }
+    .demo-poster .pcontent {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .demo-poster .plabel {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #7FD8CF;
+      margin: 0;
+    }
+    .demo-poster .ptitle {
+      font-size: clamp(19px, 2.2vw, 25px);
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      max-width: 22ch;
+      margin: 0;
+    }
+    .demo-poster .phint {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--faint);
+      margin: 2px 0 0;
+    }
+    .demo-frame.loaded .demo-poster { display: none; }
+
+    /* ---------- The interface (UI beats) ---------- */
+    .ui-beats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 36px;
+    }
+    .ui-beat { background: var(--bg); padding: 26px 24px 28px; }
+    .ui-beat .bn {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      margin: 0 0 14px;
+    }
+    .ui-beat h3 { margin: 0 0 8px; font-size: 18px; }
+    .ui-beat p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--muted); letter-spacing: -0.01em; }
+
+    @media (max-width: 880px) {
+      .ui-beats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <nav class="container">
+      <a class="nav-back" href="index.html"><span class="chev">&lsaquo;</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-inner">
+        <p class="eyebrow">Case Study &middot; 01</p>
+        <h1>Rocket Engine Health Orchestrator.</h1>
+        <p class="lede">
+          A rocket engine often fails quietly first &mdash; several sensors drifting at once, each
+          still inside its own limit. Conventional redline monitoring is structurally blind to that.
+          This is a research prototype that reads the channels <em>together</em> and flags the
+          combined signature before any single one breaks.
+        </p>
+        <div class="hero-meta">
+          <span><strong>Stack:</strong> Python &middot; PyTorch &middot; Transformers &middot; CNN &middot; Three.js</span>
+          <span><strong>Period:</strong> 2026</span>
+          <span><strong>Status:</strong> research prototype &middot; early build</span>
+        </div>
+        <div class="hero-demo">
+          <div class="demo-frame" id="demoFrame">
+            <div class="demo-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">orchestrator &mdash; live interface</span>
+            </div>
+            <div class="demo-stage">
+              <div class="demo-scaler"></div>
+              <div class="demo-poster" role="button" tabindex="0"
+                   aria-label="Launch the interactive Rocket Engine Health Orchestrator demo">
+                <svg class="ring-motif" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                  <g fill="none" stroke-linecap="round">
+                    <circle cx="900" cy="360" r="150" stroke="rgba(67,176,166,0.45)" stroke-width="1.5"/>
+                    <circle cx="900" cy="360" r="210" stroke="rgba(67,176,166,0.22)" stroke-width="1"/>
+                    <circle cx="900" cy="360" r="270" stroke="rgba(41,151,255,0.16)" stroke-width="1"/>
+                    <path d="M900 210 A150 150 0 0 1 1043 408" stroke="rgba(127,216,207,0.9)" stroke-width="2.5"/>
+                    <line x1="360" y1="360" x2="690" y2="360" stroke="rgba(41,151,255,0.35)" stroke-width="1.2" stroke-dasharray="4 6"/>
+                    <circle cx="360" cy="300" r="3" fill="rgba(255,169,77,0.9)" stroke="none"/>
+                    <circle cx="360" cy="360" r="3" fill="rgba(255,169,77,0.9)" stroke="none"/>
+                    <circle cx="360" cy="420" r="3" fill="rgba(255,169,77,0.9)" stroke="none"/>
+                  </g>
+                </svg>
+                <div class="pcontent">
+                  <p class="plabel">Interactive demo</p>
+                  <p class="ptitle">The live orchestrator interface</p>
+                  <button class="btn-primary" type="button"><span class="pl">&#9654;</span> Launch interactive demo</button>
+                  <p class="phint">3-D engine &middot; live verdicts &middot; guided tour</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTEXT -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The problem</p>
+        <div class="prose">
+          <p>
+            When a rocket engine fails, the failure has underlying causes &mdash; a bearing
+            degrading, a valve mis-commanding, combustion turning unstable &mdash; that show up
+            across the sensors as they develop. Often they show up <strong>quietly and across many
+            channels at once</strong>: vibration creeping up, a temperature trending warm, a pressure
+            easing down, each within its own limit but together forming the fault's signature.
+          </p>
+          <p>
+            Conventional monitoring watches each channel against its own redline, and is structurally
+            blind to this class of failure &mdash; the evidence is distributed, and no single channel
+            breaks its limit until the fault is well advanced. Catching these coupled, sub-threshold
+            faults is the problem this project takes on.
+          </p>
+          <p>
+            The system is positioned as an <strong>advisory layer above</strong> the engine's
+            existing deterministic redline protection, which retains all authority to act. It is a
+            research prototype &mdash; not a deployable or certifiable system &mdash; built to
+            demonstrate one approach to the problem, and to be extended.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE APPROACH -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The approach</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Detect the fault from its combined signature, not from any single channel.</h2>
+          <p>
+            Rather than watch readings in isolation, the system learns the engine's normal
+            <strong>command-to-response behavior</strong> &mdash; given the controls and current
+            state, what the channels should do &mdash; and flags departures from it. Trained on a
+            system's abundant normal operating history rather than its scarce failures, it ignores
+            benign changes that are merely the expected response to a command: a pressure rising
+            because the engine was throttled up is expected; the same rise without the command is not.
+          </p>
+          <p>
+            Each sensor is treated as its own kind of signal. A dedicated <strong>encoder</strong>
+            turns each channel into a common representation, and an <strong>attention layer</strong>
+            fuses those representations to weigh the channels against one another. The output is a
+            verdict: an anomaly flag, a calibrated confidence, and the channels the model weighted
+            most heavily in reaching it.
+          </p>
+
+          <div class="plot">
+            <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg" role="img"
+                 aria-label="Schematic: four sensor channels each sitting in caution but below its redline, fused by the orchestrator into a single verdict naming bearing degradation.">
+              <rect x="0" y="0" width="800" height="360" fill="#0F1115"/>
+              <text x="40" y="42" fill="#C7C7CC" font-family="-apple-system, sans-serif" font-size="14" font-weight="600">Four channels within limits &mdash; one verdict</text>
+
+              <!-- shared redline -->
+              <line x1="60" y1="96" x2="372" y2="96" stroke="#FF6B7A" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.9"/>
+              <text x="378" y="100" fill="#FF6B7A" font-family="ui-monospace, monospace" font-size="10">each channel's redline</text>
+
+              <!-- gauges: track + caution fill (top of fill = current level, all below redline) -->
+              <!-- Vibration -->
+              <rect x="75" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/>
+              <rect x="75" y="150" width="30" height="140" rx="4" fill="#FFA94D" opacity="0.55"/>
+              <text x="90" y="312" fill="#98989D" font-family="ui-monospace, monospace" font-size="10.5" text-anchor="middle">Vibration</text>
+              <!-- Bearing T -->
+              <rect x="160" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/>
+              <rect x="160" y="166" width="30" height="124" rx="4" fill="#FFA94D" opacity="0.55"/>
+              <text x="175" y="312" fill="#98989D" font-family="ui-monospace, monospace" font-size="10.5" text-anchor="middle">Bearing T</text>
+              <!-- Chamber P -->
+              <rect x="245" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/>
+              <rect x="245" y="156" width="30" height="134" rx="4" fill="#FFA94D" opacity="0.55"/>
+              <text x="260" y="312" fill="#98989D" font-family="ui-monospace, monospace" font-size="10.5" text-anchor="middle">Chamber P</text>
+              <!-- Coolant -->
+              <rect x="330" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/>
+              <rect x="330" y="174" width="30" height="116" rx="4" fill="#FFA94D" opacity="0.55"/>
+              <text x="345" y="312" fill="#98989D" font-family="ui-monospace, monospace" font-size="10.5" text-anchor="middle">Coolant</text>
+
+              <!-- convergence lines from each current level to the fusion node -->
+              <g stroke="#2997FF" stroke-width="1.2" opacity="0.5" fill="none">
+                <path d="M90 150 L462 180"/>
+                <path d="M175 166 L462 180"/>
+                <path d="M260 156 L462 180"/>
+                <path d="M345 174 L462 180"/>
+              </g>
+
+              <!-- fusion node -->
+              <circle cx="470" cy="180" r="12" fill="rgba(41,151,255,0.18)"/>
+              <circle cx="470" cy="180" r="6" fill="#2997FF"/>
+              <text x="470" y="150" fill="#86868B" font-family="ui-monospace, monospace" font-size="10" text-anchor="middle">attention</text>
+
+              <!-- arrow to verdict -->
+              <line x1="482" y1="180" x2="512" y2="180" stroke="#2997FF" stroke-width="2"/>
+              <polygon points="512,174 524,180 512,186" fill="#2997FF"/>
+
+              <!-- verdict card -->
+              <rect x="528" y="142" width="236" height="76" rx="10" fill="#1D1F23" stroke="#2997FF" stroke-opacity="0.6"/>
+              <text x="546" y="168" fill="#98989D" font-family="ui-monospace, monospace" font-size="10" letter-spacing="2">VERDICT</text>
+              <text x="546" y="190" fill="#F5F5F7" font-family="-apple-system, sans-serif" font-size="15" font-weight="600">Bearing degradation</text>
+              <rect x="546" y="200" width="150" height="4" rx="2" fill="#232529"/>
+              <rect x="546" y="200" width="112" height="4" rx="2" fill="#2997FF"/>
+              <text x="546" y="215" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="9" letter-spacing="0.5">confidence</text>
+            </svg>
+            <p class="plot-caption">
+              Schematic of the combinatorial idea &mdash; illustrative, not measured data. Four
+              channels sit in caution, none past its redline; the orchestrator fuses them into a
+              single verdict and names the channels it weighted most.
+            </p>
+          </div>
+
+          <p>
+            Treating the channels as a set that attention fuses is what makes the system
+            <strong>combinatorial</strong> &mdash; the signal lives in the combination, whether that
+            combination is a temporal cascade or a simultaneous coincidence. That is the whole idea:
+            several channels, each unremarkable alone, resolving into a named assessment while no
+            single one has crossed a redline.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARCHITECTURE -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Architecture</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Per-channel encoders, fused by attention.</h2>
+          <p>
+            The v1 prototype models eight representative channels. Every encoder &mdash; whatever its
+            internals &mdash; emits a fixed-length embedding in a shared space, so the fusion layer
+            sees a uniform set of tokens and never depends on how any channel was produced. That
+            shared interface is what makes the system modular: an encoder can be swapped, or a new
+            channel added, without changing anything above it.
+          </p>
+          <h3 style="margin-top: 40px;">Encoders matched to each signal</h3>
+          <ul>
+            <li>
+              <strong>Statistical encoders</strong> handle most channels (chamber pressure, bearing
+              and nozzle temperatures, coolant flow, feed pressure): the embedding is a residual
+              against expected behavior &mdash; cheap and legible, and most of the system.
+            </li>
+            <li>
+              <strong>A small convolutional encoder (CNN)</strong> handles turbopump vibration,
+              whose waveform and frequency-band structure a scalar residual can't represent.
+            </li>
+            <li>
+              <strong>The command-to-response model</strong> handles the channels whose meaning is
+              inherently dynamic (shaft speed, mixture ratio), emitting its hidden state as their
+              representation rather than judging them in isolation.
+            </li>
+          </ul>
+          <h3 style="margin-top: 40px;">The orchestrator</h3>
+          <p>
+            An attention layer takes the per-channel embeddings as tokens, each tagged with a learned
+            channel identity, and weighs them against one another to produce the verdict. Confidence
+            is reported as a <strong>calibrated</strong> measure of how far behavior sits from
+            learned-normal &mdash; most reliable in the regime the model has seen, least on behavior
+            unlike its training. An overconfident miss is the dangerous failure here, so the plan is
+            post-hoc calibration (likely temperature scaling) after training.
+          </p>
+          <div class="callout">
+            <p>
+              The implicated channels are the ones the fusion layer weighted most heavily &mdash; a
+              direct view of the model's attention, offered as a starting point for <em>where to
+              look</em>. The working assumption is stated plainly: weighting indicates
+              <strong>relevance, not proven cause.</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DESIGN DECISIONS -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Design decisions</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">What I considered, and why I rejected it.</h2>
+          <p>
+            The priority was keeping the architecture modular and easy to iterate on &mdash; starting
+            simple and only adding complexity when the data shows it's needed. Two decisions shaped
+            the rest.
+          </p>
+          <h3 style="margin-top: 40px;">Per-channel encoders, not grouped or monolithic</h3>
+          <p>
+            Grouping similar channels under one encoder, or running a single transformer over all raw
+            channels concatenated, were both on the table. I rejected them: a per-channel embedding
+            maps to one physical quantity, so the fusion layer's attention weights map directly back
+            to individual sensors. That is what keeps the output legible to an operator. A group
+            embedding is a blend &mdash; when the model attends to it, you can't ask what happened in
+            any specific channel inside it.
+          </p>
+          <h3 style="margin-top: 40px;">Command context in the fusion layer, not the encoders</h3>
+          <p>
+            The hardest practical problem is avoiding false alarms during commanded changes: a
+            throttle-down legitimately moves many channels at once, and without context that looks
+            like a fault. Baking command signals into each encoder would couple them to command logic
+            and break modularity. Instead the encoders stay focused purely on sensor data, and
+            command context is handled in the fusion layer through cross-attention to a short command
+            history.
+          </p>
+          <h3 style="margin-top: 40px;">Four floor commitments</h3>
+          <p>These hold regardless of how the design evolves:</p>
+          <ul>
+            <li>The orchestrator must catch coupled, sub-threshold faults that per-channel redlines miss <em>on the same data</em> &mdash; that baseline comparison is the result.</li>
+            <li>Training, calibration, and fault-injection data are generated separately and kept disjoint. The model sees only commands and telemetry at inference time.</li>
+            <li>Attention weights indicate which channels were relevant, not what caused the fault &mdash; and the output is presented honestly about that distinction.</li>
+            <li>The system advises; it does not act. Deterministic redline protection keeps all authority.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- DATA GENERATION -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Data generation</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">You can't test failure detection without manufacturing failures.</h2>
+          <p>
+            The system needs data it doesn't have: a real engine's operating history, and examples of
+            the faults it's meant to catch. A <strong>physics-based synthetic generator</strong>
+            supplies both for the prototype. A reduced-order engine model produces nominal telemetry
+            with realistic cross-channel correlation &mdash; driven through a duty cycle (startup
+            ramp, steady state, throttle changes, shutdown) and layered with sensor noise, channel
+            lag, and run-to-run variation.
+          </p>
+          <p>
+            Faults are <strong>injected as physical perturbations</strong> in that same model &mdash;
+            a bearing degradation is a rising friction term plus a thermal term &mdash; so the
+            multi-channel signature emerges through the model's couplings on its own, rather than
+            being drawn into the data by hand. The generator authors the faults, so it holds ground
+            truth, which makes it the system's test oracle: known fault in, expected verdict out.
+          </p>
+          <p>
+            The seam is deliberately clean. The generator and a real telemetry feed produce the same
+            thing &mdash; multi-channel time series on the same interface &mdash; so real history can
+            replace the model without touching the logic above it. This is a reduced-order model, not
+            a validated simulation of any specific engine; the claim is that its behavior is
+            physically plausible and correctly coupled, enough to make the detection problem genuine.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE INTERFACE -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">The interface</p>
+        <h2 style="max-width: 20ch; margin-bottom: 18px;">An assessment is only useful if a human can act on it.</h2>
+        <p class="lede" style="max-width: 64ch; color: var(--ink-2); margin-bottom: 4px;">
+          High-dimensional, correlated state is exactly what a person can't read from raw numbers
+          &mdash; the system's own problem, turned on the human looking at it. So the interface is
+          built to make the reasoning legible at a glance.
+        </p>
+        <div class="ui-beats">
+          <div class="ui-beat">
+            <p class="bn">01</p>
+            <h3>Split screen</h3>
+            <p>The physical engine on the left, the orchestrator's reasoning on the right &mdash; truth and interpretation side by side.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">02</p>
+            <h3>Severity is color</h3>
+            <p>State reads before a single number is parsed; nominal, caution, and alarm are immediate.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">03</p>
+            <h3>Verdict routing</h3>
+            <p>When a verdict forms, the implicated channels brighten and animate inward &mdash; you watch the evidence assemble.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">04</p>
+            <h3>Reasoning points at metal</h3>
+            <p>The named channels glow on the 3-D engine in sync, tying an abstract assessment back to physical hardware.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">05</p>
+            <h3>Self-explaining tour</h3>
+            <p>A guided walkthrough carries a first-time viewer through the whole idea, unattended.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">06</p>
+            <h3>The contrast, shown</h3>
+            <p>It can run the same drift the orchestrator flags while every individual limit stays quiet &mdash; the thesis, demonstrated.</p>
+          </div>
+        </div>
+        <a class="btn-primary" href="orchestrator.html" target="_blank" rel="noopener"><span class="pl">&#9654;</span> Launch interactive demo</a>
+      </div>
+    </section>
+
+    <!-- ROADMAP & OPEN PROBLEMS -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Roadmap &amp; open problems</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">The first rung of a ladder.</h2>
+          <p>The prototype is built so the next rungs are reachable without rebuilding.</p>
+          <ul>
+            <li><strong>v1 (this build):</strong> the full pipeline &mdash; per-channel encoders, command-to-response modeling, attention fusion, a verdict, and the demonstration &mdash; on synthetic data, advisory, fusing over a flat set of channels.</li>
+            <li><strong>Next:</strong> push more of the detection weight into the learned fusion and harden it against a richer fault library.</li>
+            <li><strong>Then:</strong> graph attention over a learned channel-influence topology &mdash; so a verdict traces to a connected subgraph of channels rather than a bag of weights. The learned graph becomes not just a detector but an explanation.</li>
+          </ul>
+          <p>The honest unknowns sit in the same territory:</p>
+          <ul>
+            <li><strong>Faithful explanation.</strong> Implicated-channel weighting can be shown to align with authored ground truth, but alignment within synthetic scenarios isn't proof of causal faithfulness. The graph-structure direction is one concrete way to attack it.</li>
+            <li><strong>Trust under novelty.</strong> Learned components are least sure exactly where a system meant to catch the unprecedented needs them most. Bounding that is open.</li>
+            <li><strong>Authority and certification.</strong> The advisory placement isn't a temporary limitation to engineer away &mdash; it reflects where trust in these methods actually stands.</li>
+          </ul>
+          <p>
+            The open architectural question I want to test first: whether cross-attention over a
+            command sequence is enough to capture command-to-response dynamics, or whether a small
+            recurrent model does better. That's the first experiment once the pipeline runs
+            end-to-end.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section class="stack-section">
+      <div class="container">
+        <div class="stack-grid">
+          <div class="stack-meta">
+            <p class="section-eyebrow" style="margin-bottom: 14px;">Stack</p>
+            <h2>What's under the hood.</h2>
+            <p>
+              Per-channel encoders emit fixed-length embeddings into a shared space; an attention
+              layer fuses them, conditioned on command history through cross-attention, into a
+              calibrated verdict. A reduced-order physics model generates nominal and faulted
+              telemetry. A Three.js front end maps the verdict back onto the engine.
+            </p>
+          </div>
+          <div class="stack-categories">
+            <div>
+              <p class="stack-cat-label">Encoders</p>
+              <ul class="stack-list">
+                <li>Statistical residual encoders</li>
+                <li>Convolutional encoder (vibration)</li>
+                <li>Shared embedding interface</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Fusion</p>
+              <ul class="stack-list">
+                <li>PyTorch &middot; attention orchestrator</li>
+                <li>Cross-attention to command history</li>
+                <li>Calibrated confidence</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Data generation</p>
+              <ul class="stack-list">
+                <li>Reduced-order physics model</li>
+                <li>Faults injected as perturbations</li>
+                <li>Disjoint train / calibrate / test</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Visualization</p>
+              <ul class="stack-list">
+                <li>Three.js live 3-D engine</li>
+                <li>Severity color &middot; verdict routing</li>
+                <li>Self-explaining guided tour</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARTIFACTS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Artifacts</p>
+        <h2 style="max-width: 18ch;">The work, in public.</h2>
+        <div class="links">
+          <a class="link-card" href="orchestrator.html">
+            <p class="link-card-label">Demo</p>
+            <p class="link-card-title">Interactive demonstration</p>
+            <p class="link-card-meta">Live 3-D engine, orchestrator verdict, guided tour</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/rocket-engine-health-orchestrator" target="_blank" rel="noopener">
+            <p class="link-card-label">Code</p>
+            <p class="link-card-title">GitHub repository</p>
+            <p class="link-card-meta">Source &mdash; encoders, attention fusion, and the data generator</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/rocket-engine-health-orchestrator/blob/main/docs/design-doc.md" target="_blank" rel="noopener">
+            <p class="link-card-label">Writeup</p>
+            <p class="link-card-title">Design rationale</p>
+            <p class="link-card-meta">Decisions considered and rejected, in narrative form</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREV / NEXT -->
+    <div class="container">
+      <nav class="pager">
+        <span></span>
+        <a class="pager-link next" href="turbofan.html">
+          <p class="pager-label">Next case study &rsaquo;</p>
+          <p class="pager-title">Turbofan Predictive Maintenance</p>
+        </a>
+      </nav>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>&copy; 2026 William Opyrchal</span>
+      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+    </div>
+  </footer>
+
+  <!--
+  ============================================================================
+  ROCKET ENGINE HEALTH ORCHESTRATOR — CASE STUDY
+  ============================================================================
+  Built on the canonical turbofan.html template (same head/CSS verbatim).
+  Source: Will's "Rocket Engine Health Orchestrator" design doc + rationale.
+
+  STRUCTURAL CHOICES:
+  - Linked from index.html as project 01; "Launch the interactive demo" and the
+    Artifacts "Demo" card both point to orchestrator.html (left as-is).
+  - Follows the DESIGN DOC as the authoritative architecture (physics-based
+    synthetic generator; learned attention fusion in v1). The interactive
+    demo's guided-tour copy still describes a different mechanism (LLM-synthesized
+    telemetry; v1 = signature matching) — that divergence is unreconciled and
+    flagged for a later pass.
+  - No "Key findings" stats row: the project is early-stage with no published
+    results numbers yet. Add a 3-stat row once real metrics exist.
+
+  COPY / LINKS FOR WILL TO VERIFY:
+  - The combinatorial schematic SVG is illustrative, not measured data (labeled
+    as such). Replace with a real plot once available.
+  - Artifact cards: Code → github.com/williamcs50/rocket-engine-health-orchestrator,
+    Writeup → docs/design-doc.md in that repo, Demo → orchestrator.html. All live.
+  - OG image: page references og-orchestrator.png; that asset still needs to be
+    created and hosted at williamopyrchal.com/og-orchestrator.png.
+  - Internal note: the design doc's Section 3 calls the command-to-response model
+    "recurrent," while the rationale lists cross-attention as the current choice
+    and recurrence as the first open experiment. Page follows the rationale.
+    Reconcile the source doc so the two sections agree.
+  -->
+  <script>
+    (function () {
+      var frame = document.getElementById('demoFrame');
+      if (!frame) return;
+      var stage  = frame.querySelector('.demo-stage');
+      var scaler = frame.querySelector('.demo-scaler');
+      var poster = frame.querySelector('.demo-poster');
+      var btn    = poster.querySelector('.btn-primary');
+      var LW = 1280, LH = 720;
+      function fit() {
+        var s = stage.clientWidth / LW;
+        stage.style.height = (LH * s) + 'px';
+        scaler.style.transform = 'scale(' + s + ')';
+      }
+      fit();
+      window.addEventListener('resize', fit);
+
+      function mount() {
+        if (scaler.querySelector('iframe')) return;
+        var ifr = document.createElement('iframe');
+        ifr.src = 'orchestrator.html';
+        ifr.title = 'Rocket Engine Health Orchestrator \u2014 interactive demo';
+        ifr.setAttribute('allow', 'fullscreen');
+        scaler.appendChild(ifr);
+        frame.classList.add('loaded');
+        fit();
+      }
+      function unmount() {
+        var ifr = scaler.querySelector('iframe');
+        if (ifr) scaler.removeChild(ifr);
+        frame.classList.remove('loaded');
+      }
+
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (reduce || !('IntersectionObserver' in window)) {
+        // Reduced motion (or no observer support): static poster, load on demand.
+        poster.addEventListener('click', mount);
+        poster.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mount(); }
+        });
+      } else {
+        // Automatic: mount when the frame is in view, unmount when scrolled away
+        // so the render loop doesn't run while reading the rest of the page.
+        if (btn) btn.style.display = 'none';
+        poster.style.cursor = 'default';
+        poster.removeAttribute('role');
+        poster.removeAttribute('tabindex');
+        poster.setAttribute('aria-label', 'Interactive demo loads automatically when in view');
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) mount(); else unmount();
+          });
+        }, { rootMargin: '250px 0px' });
+        io.observe(frame);
+      }
+    })();
+  </script>
+</body>
+</html>
