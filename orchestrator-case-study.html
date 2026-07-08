@@ -368,10 +368,11 @@
     /* ---------- Links section ---------- */
     .links {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 16px;
       margin-top: 32px;
     }
+    @media (max-width: 980px) { .links { grid-template-columns: repeat(2, 1fr); } }
     .link-card {
       display: block;
       padding: 24px;
@@ -1074,6 +1075,12 @@
             <p class="link-card-title">Design rationale</p>
             <p class="link-card-meta">Decisions considered and rejected, in narrative form</p>
             <span class="arrow">&rsaquo;</span>
+          </a>
+
+          <a class="link-card" href="build-log.html">
+            <p class="link-card-label">Build log</p>
+            <p class="link-card-title">Live progress tracker</p>
+            <p class="link-card-meta">Phase-by-phase status against the 30-day plan, updated as it ships</p>
           </a>
         </div>
       </div>

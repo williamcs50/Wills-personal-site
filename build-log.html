@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocket Engine Health Orchestrator — Build Log</title>
+  <meta name="description" content="A live build log for the Rocket Engine Health Orchestrator: coupled-fault detection for rocket engines, delivered against a comprehensive seven-phase development plan." />
+  <style>
+    :root {
+      --bg: #16181C; --bg-alt: #1D1F23; --bg-section: #232529;
+      --ink: #F5F5F7; --ink-2: #C7C7CC; --muted: #98989D; --faint: #6E6E73;
+      --line: rgba(255,255,255,0.10); --line-soft: rgba(255,255,255,0.06);
+      --link: #2997FF; --link-hover: #5AB0FF; --accent: #2997FF; --code-bg: #0F1115;
+      --ok: #30D158; --ok-dim: rgba(48,209,88,0.14); --warn: #FFA94D; --warn-dim: rgba(255,169,77,0.14); --fail: #FF6B7A;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 18px; line-height: 1.6; letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+ 
+    header { position: sticky; top: 0; z-index: 50; background: rgba(22,24,28,0.78); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line-soft); }
+    nav { height: 52px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+    .nav-back { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); letter-spacing: -0.01em; transition: color 160ms ease; }
+    .nav-back:hover { color: var(--ink); }
+    .nav-right { display: inline-flex; align-items: center; gap: 18px; }
+    .nav-tour { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-2); background: none; border: 1px solid var(--line); border-radius: 980px; padding: 6px 14px; cursor: pointer; transition: border-color 160ms ease, color 160ms ease; }
+    .nav-tour:hover { border-color: var(--accent); color: var(--ink); }
+    .nav-status { font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+    .nav-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: pulse 2.6s infinite; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(48,209,88,.5);}70%{box-shadow:0 0 0 7px rgba(48,209,88,0);}100%{box-shadow:0 0 0 0 rgba(48,209,88,0);} }
+ 
+    h1,h2,h3,p { margin-top: 0; }
+    h1 { font-weight: 600; font-size: clamp(40px,5.8vw,74px); letter-spacing: -0.035em; line-height: 1.05; margin: 0; }
+    h2 { font-weight: 600; font-size: clamp(26px,3.2vw,38px); letter-spacing: -0.025em; line-height: 1.12; margin: 0; }
+    .eyebrow { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 22px; }
+    .lede { font-size: clamp(21px,2.4vw,27px); font-weight: 400; color: var(--ink-2); letter-spacing: 0.004em; line-height: 1.36; }
+    .section-eyebrow { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 22px; }
+    .section-intro { max-width: none; margin: 0 0 34px; }
+    .section-intro p { font-size: 18px; line-height: 1.6; color: var(--ink-2); margin: 0 0 18px; letter-spacing: -0.01em; }
+    .section-intro p:last-child { margin-bottom: 0; }
+    .section-intro strong { color: var(--ink); font-weight: 600; }
+    .section-intro em { color: var(--ink); font-style: italic; }
+ 
+    .hero { padding: 76px 0 44px; }
+    .hero-inner > * { opacity: 0; transform: translateY(24px); animation: heroIn 1000ms cubic-bezier(.16,.84,.3,1) forwards; }
+    .hero-inner > *:nth-child(1){animation-delay:80ms;} .hero-inner > *:nth-child(2){animation-delay:220ms;}
+    .hero-inner > *:nth-child(3){animation-delay:380ms;} .hero-inner > *:nth-child(4){animation-delay:560ms;}
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+    .hero h1 { max-width: 16ch; margin-bottom: 22px; }
+ 
+    .hero-prose { max-width: none; }
+    .hero-prose .lede { max-width: none; margin: 0 0 30px; }
+    .hero-prose em { color: var(--ink); font-style: italic; }
+    .hero-beats { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; padding-top: 30px; border-top: 1px solid var(--line-soft); }
+    .beat-label { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+    .beat-text { font-size: 17px; line-height: 1.62; color: var(--ink-2); margin: 0; letter-spacing: -0.01em; }
+    .hero-tour { margin-top: 34px; }
+    .tour-start { font-family: var(--mono); font-size: 14px; letter-spacing: 0.03em; color: #fff; background: var(--accent); border: 1px solid var(--accent); border-radius: 980px; padding: 14px 26px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease; box-shadow: 0 8px 24px rgba(41,151,255,0.30); }
+    .tour-start:hover { background: var(--link-hover); border-color: var(--link-hover); transform: translateY(-1px); box-shadow: 0 10px 28px rgba(41,151,255,0.38); }
+    .tour-start .play { color: #fff; font-size: 11px; }
+ 
+    /* Progress band */
+    .progress-band { margin: 44px 0 8px; padding: 32px; background: var(--bg-alt); border: 1px solid var(--line); border-radius: 20px; }
+    .pb-top { display: grid; grid-template-columns: auto 1fr; gap: 48px; align-items: center; padding-bottom: 28px; border-bottom: 1px solid var(--line-soft); }
+    .pb-figure { display: flex; flex-direction: column; }
+    .pb-pct { font-size: clamp(56px,8vw,90px); font-weight: 600; letter-spacing: -0.04em; font-feature-settings: "tnum"; line-height: 0.95; }
+    .pb-pct .unit { font-size: 0.4em; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+    .pb-cap { font-family: var(--mono); font-size: 13px; letter-spacing: 0.03em; color: var(--muted); margin-top: 14px; }
+    .pb-bars { display: flex; flex-direction: column; gap: 22px; }
+    .bar-labels { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+    .bar-labels .val { text-transform: none; letter-spacing: 0; color: var(--ink-2); }
+    .bar-labels .val .ok { color: var(--ok); } .bar-labels .val .warn { color: var(--warn); }
+    .seg-bar { display: flex; gap: 3px; height: 38px; }
+    .seg { position: relative; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-width: 0; }
+    .seg-fill { position: absolute; left: 0; top: 0; bottom: 0; transition: width 700ms cubic-bezier(.16,.84,.3,1); }
+    .seg.done .seg-fill { background: var(--ok); } .seg.active .seg-fill { background: var(--accent); }
+    .seg-id { position: relative; z-index: 1; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; color: var(--muted); }
+    .seg.done .seg-id, .seg.active .seg-id { color: var(--bg); font-weight: 700; }
+    .sched-bar { position: relative; height: 16px; background: rgba(255,255,255,0.05); border-radius: 980px; }
+    .sched-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 980px; transition: width 700ms cubic-bezier(.16,.84,.3,1); }
+    .sched-pace { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--ink-2); opacity: 0.75; border-radius: 2px; }
+ 
+    .momentum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; margin-top: 24px; }
+    .m-cell { background: var(--bg-alt); padding: 22px 20px; }
+    .m-num { font-size: clamp(28px,3vw,36px); font-weight: 600; letter-spacing: -0.025em; font-feature-settings: "tnum"; line-height: 1; margin: 0 0 9px; }
+    .m-num .sub { font-size: 0.5em; color: var(--muted); font-weight: 500; }
+    .m-num.debt { color: var(--warn); }
+    .m-label { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin: 0; line-height: 1.4; }
+ 
+    .section { padding: 76px 0; border-top: 1px solid var(--line-soft); }
+ 
+    /* Phase rail */
+    .phase-rail { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; position: relative; }
+    .phase-rail::before { content:""; position:absolute; left:27px; top:16px; bottom:16px; width:2px; background:var(--line-soft); z-index:0; }
+    .phase { position: relative; z-index: 1; background: var(--bg-alt); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; transition: border-color 200ms ease; }
+    .phase.pivotal { border-color: rgba(41,151,255,0.34); }
+    .phase.active { border-color: rgba(41,151,255,0.28); }
+    .phase-header { display: grid; grid-template-columns: 54px 1fr auto; gap: 18px; align-items: center; width: 100%; background: none; border: none; text-align: left; color: inherit; font-family: inherit; padding: 22px; cursor: pointer; }
+    .phase-header:hover { background: var(--bg-section); }
+    .phase-header:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .phase-id { font-family: var(--mono); font-size: 16px; font-weight: 600; letter-spacing: 0.02em; color: var(--faint); display: flex; align-items: center; gap: 11px; }
+    .status-led { width: 11px; height: 11px; border-radius: 50%; flex: none; border: 2px solid var(--bg-alt); }
+    .status-led.done { background: var(--ok); } .status-led.active { background: var(--accent); animation: pulseB 2.4s infinite; } .status-led.locked { background: var(--faint); opacity: .5; }
+    @keyframes pulseB { 0%{box-shadow:0 0 0 0 rgba(41,151,255,.5);}70%{box-shadow:0 0 0 6px rgba(41,151,255,0);}100%{box-shadow:0 0 0 0 rgba(41,151,255,0);} }
+    .phase-body-head h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.022em; margin: 0 0 5px; color: var(--ink); line-height: 1.2; }
+    .phase.locked .phase-body-head h3 { color: var(--ink-2); }
+    .phase-obj { font-size: 16px; color: var(--muted); margin: 0; line-height: 1.5; max-width: 64ch; }
+    .phase-right { display: flex; align-items: center; gap: 16px; }
+    .phase-tag { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 10px; border-radius: 980px; white-space: nowrap; }
+    .phase-tag.done { color: var(--ok); background: var(--ok-dim); } .phase-tag.active { color: var(--accent); background: rgba(41,151,255,.14); } .phase-tag.locked { color: var(--faint); background: rgba(255,255,255,.05); }
+    .phase-tag.pivotal-tag { color: var(--accent); background: rgba(41,151,255,.14); }
+    .phase-count { font-family: var(--mono); font-size: 13px; color: var(--muted); min-width: 44px; text-align: right; }
+    .chev-toggle { color: var(--faint); font-size: 16px; transition: transform 200ms ease; }
+    .phase.open .chev-toggle { transform: rotate(90deg); }
+    .phase-progress { height: 3px; background: var(--line-soft); position: relative; }
+    .phase-progress > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); transition: width 500ms ease; }
+    .phase.done .phase-progress > span { background: var(--ok); }
+    .phase-tasks { display: none; padding: 8px 22px 22px; }
+    .phase.open .phase-tasks { display: block; }
+    .task { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 15px 0; border-top: 1px solid var(--line-soft); }
+    .task-name { font-size: 16px; color: var(--ink-2); letter-spacing: -0.01em; }
+    .task.done .task-name { color: var(--ink); }
+    .task-est { font-family: var(--mono); font-size: 12px; color: var(--faint); margin-left: 10px; }
+    .task-pills { display: inline-flex; gap: 8px; flex: none; }
+    .pill { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; padding: 5px 10px; border-radius: 980px; border: 1px solid var(--line); color: var(--faint); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .pill.on { color: var(--ok); border-color: rgba(48,209,88,.35); background: var(--ok-dim); }
+    .exit-test { margin-top: 16px; padding: 16px 18px; border-left: 2px solid var(--accent); background: var(--bg); border-radius: 0 10px 10px 0; }
+    .exit-test .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 7px; }
+    .exit-test p { margin: 0; font-size: 15px; color: var(--ink-2); line-height: 1.55; }
+    .exit-test.passed { border-color: var(--ok); } .exit-test.passed .lbl { color: var(--ok); }
+ 
+    /* Gap strip */
+    .gap-strip { background: var(--bg-alt); border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; }
+    .gap-read { display: flex; gap: 44px; flex-wrap: wrap; }
+    .gap-metric .gm-num { font-size: 38px; font-weight: 600; letter-spacing: -0.03em; font-feature-settings: "tnum"; line-height: 1; }
+    .gap-metric .gm-num .unit { font-size: 0.42em; color: var(--muted); margin-left: 3px; }
+    .gap-metric .gm-lab { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin: 9px 0 0; }
+    .gap-metric .gm-lab .ok { color: var(--ok); } .gap-metric .gm-lab .up { color: var(--accent); }
+    .spark { width: 240px; height: 68px; }
+    .gap-note { grid-column: 1 / -1; font-size: 15px; color: var(--muted); line-height: 1.6; margin: 4px 0 0; max-width: 82ch; border-top: 1px solid var(--line-soft); padding-top: 18px; }
+ 
+    /* Ledger */
+    .ledger-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 44px; align-items: center; }
+    .ledger-bar { display: flex; height: 56px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 20px; }
+    .ledger-seg { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--bg); transition: flex-basis 500ms ease; }
+    .ledger-seg.hand { background: var(--accent); } .ledger-seg.expl { background: #5A6270; color: var(--ink); } .ledger-seg.debt { background: var(--warn); }
+    .ledger-caption { font-size: 15px; color: var(--muted); margin: 0; line-height: 1.6; max-width: 46ch; }
+    .ledger-debt-list { margin: 10px 0 14px; padding: 0; list-style: none; }
+    .ledger-debt-item { font-family: var(--mono); font-size: 13px; color: var(--warn); line-height: 1.6; letter-spacing: 0.01em; }
+    .ledger-debt-item .debt-phase { color: var(--muted); margin-right: 6px; }
+    .ledger-debt-clear { font-family: var(--mono); font-size: 13px; color: var(--ok); margin: 10px 0 14px; letter-spacing: 0.01em; }
+    .ledger-key { display: flex; flex-direction: column; gap: 16px; }
+    .ledger-key-item { display: flex; align-items: flex-start; gap: 12px; }
+    .ledger-swatch { width: 13px; height: 13px; border-radius: 3px; margin-top: 5px; flex: none; }
+    .ledger-key-item .k-label { font-size: 15px; color: var(--ink); font-weight: 600; letter-spacing: -0.01em; }
+    .ledger-key-item .k-desc { font-size: 14px; color: var(--muted); margin: 3px 0 0; line-height: 1.5; }
+    .ledger-key-item .k-count { font-family: var(--mono); color: var(--ink-2); }
+ 
+    /* Decisions */
+    .decisions { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+    .decision { background: var(--bg-alt); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; display: grid; grid-template-columns: 48px 1fr; gap: 16px; align-items: start; }
+    .decision-phase { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); padding-top: 2px; }
+    .decision-chose { font-size: 16px; color: var(--ink); margin: 0 0 5px; letter-spacing: -0.01em; line-height: 1.45; }
+    .decision-rej { font-size: 14px; color: var(--muted); margin: 0; font-family: var(--mono); line-height: 1.45; }
+    .decision-rej .x { color: var(--fail); margin-right: 5px; }
+ 
+ 
+    footer { padding: 32px 0 44px; background: var(--bg); font-family: var(--mono); font-size: 13px; color: var(--muted); border-top: 1px solid var(--line-soft); }
+    footer .container { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+ 
+    /* Guided tour */
+    .tour-overlay { position: fixed; inset: 0; z-index: 200; display: none; }
+    .tour-overlay.on { display: block; }
+    .tour-spot { position: absolute; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(11,12,15,0.55), 0 0 30px rgba(41,151,255,0.35); border: 2px solid var(--accent); pointer-events: none; opacity: 0; transition: opacity 220ms ease; }
+    .tour-spot.animate { transition: top .3s cubic-bezier(.16,.84,.3,1), left .3s cubic-bezier(.16,.84,.3,1), width .3s cubic-bezier(.16,.84,.3,1), height .3s cubic-bezier(.16,.84,.3,1), opacity 220ms ease; }
+    .tour-card { position: absolute; width: min(380px, 88vw); background: var(--bg-section); border: 1px solid rgba(41,151,255,0.42); border-radius: 16px; padding: 22px 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.62), 0 0 0 1px rgba(41,151,255,0.12); z-index: 202; opacity: 0; transition: opacity 200ms ease; }
+    .tour-card.animate { transition: top .3s cubic-bezier(.16,.84,.3,1), left .3s cubic-bezier(.16,.84,.3,1), opacity 200ms ease; }
+    .tour-count { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+    .tour-title { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 8px; color: var(--ink); line-height: 1.2; }
+    .tour-body { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 0 20px; letter-spacing: -0.01em; }
+    .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .tour-skip { font-family: var(--mono); font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 0; letter-spacing: 0.02em; }
+    .tour-skip:hover { color: var(--ink-2); }
+    .tour-nav { display: inline-flex; gap: 8px; }
+    .tour-btn { font-family: var(--mono); font-size: 13px; letter-spacing: 0.02em; border-radius: 980px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--line); background: none; color: var(--ink-2); transition: border-color 160ms ease, color 160ms ease; }
+    .tour-btn:hover { border-color: var(--accent); color: var(--ink); }
+    .tour-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tour-btn.primary:hover { background: var(--link-hover); }
+ 
+    @media (max-width: 860px) {
+      .pb-top { grid-template-columns: 1fr; gap: 26px; }
+      .hero-beats { grid-template-columns: 1fr; gap: 24px; }
+      .momentum { grid-template-columns: repeat(2, 1fr); }
+      .ledger-grid { grid-template-columns: 1fr; }
+      .gap-strip { grid-template-columns: 1fr; }
+      .spark { width: 100%; }
+      .phase-header { grid-template-columns: 42px 1fr; }
+      .phase-right { grid-column: 1 / -1; justify-content: flex-start; padding-left: 60px; }
+      .task { grid-template-columns: 1fr; align-items: flex-start; }
+      .nav-tour { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-inner > * { animation: none; opacity: 1; transform: none; }
+      .status-led.active, .nav-status .dot { animation: none; }
+      .tour-spot, .tour-card { transition: none; }
+      * { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <nav>
+        <a class="nav-back" href="index.html"><span>‹</span> williamopyrchal.com</a>
+        <div class="nav-right">
+          <button type="button" class="nav-tour" id="navTour">Guided tour</button>
+          <span class="nav-status"><span class="dot" id="navDot"></span> <span id="navStatusText">SINGLE TARGET TEST — PASS</span></span>
+        </div>
+      </nav>
+    </div>
+  </header>
+ 
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <p class="eyebrow">Mission Control · Build Log</p>
+        <h1>Rocket Engine Health Orchestrator</h1>
+        <div class="hero-prose">
+          <p class="lede">What's more exciting than engineering economic and rapid access to space — and exploring it for the benefit of humanity? None of that happens without rocket engines that can be designed efficiently and flown reliably.</p>
+          <p class="lede" style="margin-top: 18px; font-style: italic; color: var(--muted);">This page shows how the build log will look. The entries below are sample data — real progress will replace them as development begins.</p>
+          <div class="hero-beats">
+            <div class="beat">
+              <p class="beat-label">What I'm building</p>
+              <p class="beat-text">I wanted to work on that problem, so I'm building a system that reads an engine's sensor channels together to catch coupled, sub-threshold faults a per-channel redline is structurally blind to — the quiet failure behind real engine-test aborts.</p>
+            </div>
+            <div class="beat">
+              <p class="beat-label">How I'm running it</p>
+              <p class="beat-text">I also wanted to learn to run a project and stay motivated the whole way — so I built the system that manages this one: nothing is done until it passes a pre-registered test <em>and</em> I can explain it from first principles, a ledger keeps my understanding in step with everything I delegate to AI, and I can see my progress build day by day.</p>
+            </div>
+          </div>
+          <div class="hero-tour">
+            <button type="button" class="tour-start" id="heroTour"><span class="play">▶</span> Take the 90-second tour</button>
+          </div>
+        </div>
+        <div class="progress-band">
+          <div class="pb-top">
+            <div class="pb-figure">
+              <span class="pb-pct" id="pbPct">0<span class="unit">%</span></span>
+              <span class="pb-cap" id="pbCap">complete</span>
+            </div>
+            <div class="pb-bars">
+              <div class="bar-block">
+                <div class="bar-labels"><span>Progress by phase</span><span class="val" id="phaseNowLab"></span></div>
+                <div class="seg-bar" id="segBar"></div>
+              </div>
+              <div class="bar-block">
+                <div class="bar-labels"><span>Schedule · 30-day goal</span><span class="val" id="schedLab"></span></div>
+                <div class="sched-bar" id="schedBar"><span class="sched-fill" id="schedFill"></span><span class="sched-pace" id="schedPace"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="momentum" id="momentum"></div>
+        </div>
+      </div>
+    </section>
+ 
+ 
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">The destination — single target metric</p>
+        <div class="section-intro">
+          <p>Everything above is progress; this is the point of it. A <strong>coupled fault</strong> is one where several sensors each stay inside their own safe limit, but their combination is abnormal — the failure a conventional per-channel redline can't see, because no single channel ever crosses a line.</p>
+          <p>The one number that matters is how many of these the system catches — <em>recall</em> — and it has to do so without crying wolf on clean data. Recall sits near zero through the early phases, when nothing yet can reason across channels, then climbs sharply at P2 as the fusion layer comes online. The dashed line is a false-alarm budget fixed in advance: catching faults only counts while the system stays under it.</p>
+        </div>
+        <div class="gap-strip">
+          <div class="gap-read">
+            <div class="gap-metric"><div class="gm-num" id="recallNum">—</div><p class="gm-lab" id="recallLab">coupled-fault recall</p></div>
+            <div class="gap-metric"><div class="gm-num" id="faNum">—</div><p class="gm-lab" id="faLab">false-alarm rate</p></div>
+          </div>
+          <svg class="spark" id="spark" viewBox="0 0 240 68" preserveAspectRatio="none" aria-hidden="true"></svg>
+        </div>
+      </div>
+    </section>
+ 
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">The Ledger — black-box debt</p>
+        <div class="section-intro">
+          <p>Delegating to AI is fine; not understanding what you delegated is not. Every component is filed as one of three things — built by hand, delegated but explainable on demand, or delegated and <em>not yet understood</em>. That last category is debt, and the rule is simple: it has to trend to zero by the end. If it ever grows, that's the signal to slow down and build the next stretch by hand.</p>
+        </div>
+        <div class="ledger-grid">
+          <div>
+            <div class="ledger-bar" id="ledgerBar"></div>
+            <div id="ledgerDebtNames"></div>
+            <p class="ledger-caption">The bar is sized by how much of the build sits in each category. Watching the orange shrink is the point.</p>
+          </div>
+          <div class="ledger-key" id="ledgerKey"></div>
+        </div>
+      </div>
+    </section>
+ 
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">The climb — P0 → P6</p>
+        <div class="section-intro">
+          <p>The build runs as seven phases in a fixed order, each a prerequisite for the next: the per-channel encoder in P1 feeds the fusion layer in P2, which feeds command-awareness in P3, and so on down the line. A slow phase moves the finish date — it doesn't get skipped.</p>
+          <p>Every phase ends in a single pass/fail <strong>exit test written down before the work began</strong>, so "done" is never a judgment call. And every task inside a phase clears two bars, not one: its test passes with captured output, <em>and</em> the work can be explained from first principles. Code I can run but can't account for isn't finished — it's debt. Open any phase to see its tasks and the test that closes it.</p>
+        </div>
+        <div class="phase-rail" id="phaseRail"></div>
+      </div>
+    </section>
+ 
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Decision log — chosen vs. rejected</p>
+        <div class="section-intro">
+          <p>A running record of the forks in the road — what was chosen, and what was deliberately rejected. Keeping the rejected option visible is the whole point: it's the difference between "the model works" and "I know why this design, and not the obvious alternative."</p>
+        </div>
+        <div class="decisions" id="decisionLog"></div>
+      </div>
+    </section>
+ 
+  </main>
+ 
+  <footer>
+    <div class="container"><span>© 2026 William Opyrchal</span><span id="footerStamp"></span></div>
+  </footer>
+ 
+  <!-- Guided tour -->
+  <div class="tour-overlay" id="tourOverlay">
+    <div class="tour-spot" id="tourSpot"></div>
+    <div class="tour-card" id="tourCard">
+      <p class="tour-count" id="tourCount"></p>
+      <h4 class="tour-title" id="tourTitle"></h4>
+      <p class="tour-body" id="tourBody"></p>
+      <div class="tour-actions">
+        <button type="button" class="tour-skip" id="tourSkip">Skip tour</button>
+        <div class="tour-nav">
+          <button type="button" class="tour-btn" id="tourBack">Back</button>
+          <button type="button" class="tour-btn primary" id="tourNext">Next ›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
+  <script>
+  const PROGRESS = {
+    startDate: "2026-07-06", currentDay: 11, goalDays: 30, targetLabel: "~Aug 17",
+    targetTest: { lastRun: "PASS", lastRunDay: 11 },
+    gap: { ceiling: 0.02, series: [ {phase:"P0",recall:0.01,fa:0.010},{phase:"P1",recall:0.02,fa:0.011},{phase:"P2",recall:0.89,fa:0.014} ], target: 0.90 },
+    ledger: { hand: 8, expl: 5, debt: 1 },
+    phases: [
+      { id:"P0", name:"Harness and the Gap", status:"done", pivotal:false,
+        objective:"Build the thin end-to-end pipeline and prove, on our own data, that per-channel limits miss coupled sub-threshold faults.",
+        exit:{text:"Same detector, same data: high recall on single-channel faults, near-zero on the coupled fault — side by side, under the false-alarm ceiling.", passed:true},
+        tasks:[
+          {name:"Clean-signal generator",est:"1d",output:true,explained:true,mode:"hand"},
+          {name:"Command-track generator",est:"0.5d",output:true,explained:true,mode:"delegated"},
+          {name:"Fault injection + labels",est:"1d",output:true,explained:true,mode:"hand"},
+          {name:"Disjoint data splits",est:"0.5d",output:true,explained:true,mode:"delegated"},
+          {name:"Scoring harness",est:"1d",output:true,explained:true,mode:"hand"},
+          {name:"Baseline limit detector",est:"0.5d",output:true,explained:true,mode:"delegated"},
+          {name:"False-alarm budget (pre-registered)",est:"0.5d",output:true,explained:true,mode:"hand"} ] },
+      { id:"P1", name:"Single-Channel Encoder", status:"done", pivotal:false,
+        objective:"Turn one sensor's recent behavior into a compact summary, and detect single-channel faults from it.",
+        exit:{text:"On held-out single-channel faults the encoder never trained on, severity cleanly separates faulted from clean against the labels.", passed:true},
+        tasks:[
+          {name:"Input window + normalization",est:"0.5d",output:true,explained:true,mode:"hand"},
+          {name:"Encoder",est:"1.5d",output:true,explained:true,mode:"hand"},
+          {name:"Training objective",est:"1d",output:true,explained:true,mode:"hand"},
+          {name:"Severity readout",est:"1d",output:true,explained:true,mode:"delegated"} ] },
+      { id:"P2", name:"Combination Layer", status:"active", pivotal:true,
+        objective:"Reason across all channels at once and catch the coupled fault the baseline missed. If it lands, the project is largely de-risked.",
+        exit:{text:"The exact coupled fault the baseline missed in P0 is now caught, its channels named, and clean data stays quiet — same data, same harness.", passed:false},
+        tasks:[
+          {name:"Multi-channel assembly",est:"1d",output:true,explained:true,mode:"hand"},
+          {name:"Negative control — bag-of-channels",est:"0.5d",output:true,explained:true,mode:"delegated"},
+          {name:"Combination layer (attention fusion)",est:"3d",output:true,explained:false,mode:"blackbox"},
+          {name:"Verdict output",est:"1d",output:false,explained:false,mode:"delegated"},
+          {name:"Combination verdict logic",est:"1.5d",output:false,explained:false,mode:"hand"} ] },
+      { id:"P3", name:"Command Awareness", status:"locked", pivotal:false,
+        objective:"Distinguish a normal response to a command from a real fault, so commanded motion stops causing false alarms.",
+        exit:{text:"A commanded transient stays quiet, a real fault during that command still fires, and a command-mimicking fault still fires — all in one scorecard.", passed:false},
+        tasks:[
+          {name:"Command-history input",est:"1d",output:false,explained:false,mode:"hand"},
+          {name:"Command-consultation (cross-attention)",est:"2.5d",output:false,explained:false,mode:"hand"},
+          {name:"Commanded-transient test set",est:"1d",output:false,explained:false,mode:"delegated"},
+          {name:"Command-mimicking fault case",est:"1d",output:false,explained:false,mode:"hand"} ] },
+      { id:"P4", name:"Calibration and Readability", status:"locked", pivotal:false,
+        objective:"Make reported confidence trustworthy and the output legible to an operator under time pressure.",
+        exit:{text:"A reliability plot lines up with reality, a miscalibration score falls under a pre-agreed threshold, and the layout view lights the right region.", passed:false},
+        tasks:[
+          {name:"Calibration data pipeline",est:"0.5d",output:false,explained:false,mode:"delegated"},
+          {name:"Confidence adjustment (temperature scaling)",est:"1.5d",output:false,explained:false,mode:"hand"},
+          {name:"Ranked-contributor output",est:"1d",output:false,explained:false,mode:"delegated"},
+          {name:"Physical-layout view",est:"2d",output:false,explained:false,mode:"delegated"} ] },
+      { id:"P5", name:"Sanctioned Experiment", status:"locked", pivotal:false,
+        objective:"Settle on evidence: is cross-attention over command history enough, or would a small recurrent model do better?",
+        exit:{text:"Both models run on identical held-out data; the winner is chosen strictly by the pre-set rule, numbers recorded — even if the answer is 'no difference.'", passed:false},
+        tasks:[
+          {name:"Alternative model (recurrent challenger)",est:"1.5d",output:false,explained:false,mode:"hand"},
+          {name:"Head-to-head protocol",est:"1d",output:false,explained:false,mode:"delegated"} ] },
+      { id:"P6", name:"Integration and Completion", status:"locked", pivotal:false,
+        objective:"Confirm the whole system works together on data it has never seen, and that every commitment is honored.",
+        exit:{text:"The single target test passes on unseen data with no regressions, and any component can be explained on question.", passed:false},
+        tasks:[
+          {name:"End-to-end run on unseen faults",est:"1d",output:false,explained:false,mode:"hand"},
+          {name:"Regression re-run",est:"0.5d",output:false,explained:false,mode:"delegated"},
+          {name:"Commitment audit",est:"0.5d",output:false,explained:false,mode:"hand"},
+          {name:"Documentation + attribution",est:"1d",output:false,explained:false,mode:"hand"} ] }
+    ],
+    decisions: [
+      { phase:"P2", chose:"Attention over sensor channels — a channel asks which others move with it.", rejected:"Monolithic model over all channels stacked as one vector" },
+      { phase:"P2", chose:"Bag-of-channels negative control run first, to prove the fault needs relational reasoning.", rejected:"Jumping straight to attention and assuming the win meant something" },
+      { phase:"P1", chose:"Learn-normal / flag-deviation objective (reconstruction).", rejected:"Classify-faults supervised head — faults too rare and synthetic" },
+      { phase:"P0", chose:"Pre-registered false-alarm ceiling before any detector is scored.", rejected:"Judging 'clean data stays quiet' by eye after the fact" }
+    ]
+  };
+ 
+  const $ = (id) => document.getElementById(id);
+  const pct = (x) => (x*100).toFixed(x>=0.1?0:1);
+  const isComplete = (t) => t.output && t.explained;
+ 
+  function renderNav() {
+    const ok = PROGRESS.targetTest.lastRun === "PASS";
+    $("navStatusText").textContent = `SINGLE TARGET TEST — ${PROGRESS.targetTest.lastRun}`;
+    if (!ok) { $("navDot").style.background = "var(--fail)"; $("navDot").style.animation = "none"; }
+  }
+ 
+  function renderProgress() {
+    const all = PROGRESS.phases.flatMap(p => p.tasks);
+    const total = all.length, complete = all.filter(isComplete).length;
+    const overall = Math.round(100 * complete / total);
+    const phasesCleared = PROGRESS.phases.filter(p => p.status === "done").length;
+    const active = PROGRESS.phases.find(p => p.status === "active");
+    const day = PROGRESS.currentDay, goal = PROGRESS.goalDays;
+    $("pbPct").innerHTML = overall + '<span class="unit">%</span>';
+    $("pbCap").innerHTML = `complete · ${complete} of ${total} components verified`;
+    $("segBar").innerHTML = PROGRESS.phases.map(p => {
+      const tot = p.tasks.length, don = p.tasks.filter(isComplete).length;
+      const fill = p.status === "locked" ? 0 : Math.round(100 * don / tot);
+      return `<div class="seg ${p.status}" style="flex:${tot} 1 0" title="${p.id} · ${p.name} — ${don}/${tot} verified"><span class="seg-fill" style="width:${fill}%"></span><span class="seg-id">${p.id}</span></div>`;
+    }).join("");
+    $("phaseNowLab").innerHTML = active ? `on ${active.id} · ${active.name}` : "all phases cleared";
+    const elapsedPct = Math.min(100, Math.round(100 * day / goal));
+    $("schedFill").style.width = overall + "%";
+    $("schedPace").style.left = elapsedPct + "%";
+    const ahead = overall >= elapsedPct;
+    $("schedLab").innerHTML = `day ${day} / ${goal} · ${ahead ? '<span class="ok">ahead of pace</span>' : '<span class="warn">behind pace</span>'} · target ${PROGRESS.targetLabel}`;
+    $("momentum").innerHTML = [
+      { num: `${phasesCleared}<span class="sub"> / 7</span>`, label: "Phases cleared" },
+      { num: `${complete}<span class="sub"> / ${total}</span>`, label: "Components verified" },
+      { num: `${PROGRESS.ledger.debt}`, label: "Black-box debt", cls: "debt" },
+      { num: `${goal - day}<span class="sub"> days</span>`, label: "Left to goal" }
+    ].map(c => `<div class="m-cell"><p class="m-num ${c.cls||''}">${c.num}</p><p class="m-label">${c.label}</p></div>`).join("");
+    $("footerStamp").textContent = "build log · day " + day + " of " + goal;
+  }
+ 
+  function renderPhases() {
+    const rail = $("phaseRail"); rail.innerHTML = "";
+    PROGRESS.phases.forEach(p => {
+      const total = p.tasks.length, done = p.tasks.filter(isComplete).length;
+      const barPct = Math.round(100*done/total);
+      const openByDefault = p.status === "active";
+      const tag = p.status==="done" ? '<span class="phase-tag done">Cleared</span>'
+                : p.status==="active" ? '<span class="phase-tag active">In progress</span>'
+                : '<span class="phase-tag locked">Locked</span>';
+      const pivotalTag = p.pivotal ? '<span class="phase-tag pivotal-tag">Pivotal</span>' : '';
+      const tasksHTML = p.tasks.map(t => {
+        const c = isComplete(t);
+        const outPill = `<span class="pill ${t.output?'on':''}">${t.output?'✓':'○'} output</span>`;
+        const expPill = `<span class="pill ${t.explained?'on':''}">${t.explained?'✓':'○'} explained</span>`;
+        return `<div class="task ${c?'done':''}"><div class="task-name">${t.name}<span class="task-est">${t.est}</span></div><div class="task-pills">${outPill}${expPill}</div></div>`;
+      }).join("");
+      const exitCls = p.exit.passed ? "exit-test passed" : "exit-test";
+      const exitLbl = p.exit.passed ? "Exit test — passed" : "Exit test — pending";
+      const el = document.createElement("div");
+      el.className = `phase ${p.status}${p.pivotal?' pivotal':''}${openByDefault?' open':''}`;
+      el.setAttribute("data-phase", p.id);
+      el.innerHTML = `
+        <button class="phase-header" aria-expanded="${openByDefault}">
+          <span class="phase-id"><span class="status-led ${p.status}"></span>${p.id}</span>
+          <span class="phase-body-head"><h3>${p.name}</h3><p class="phase-obj">${p.objective}</p></span>
+          <span class="phase-right">${pivotalTag}${tag}<span class="phase-count">${done}/${total}</span><span class="chev-toggle">›</span></span>
+        </button>
+        <div class="phase-progress"><span style="width:${barPct}%"></span></div>
+        <div class="phase-tasks">${tasksHTML}<div class="${exitCls}"><span class="lbl">${exitLbl}</span><p>${p.exit.text}</p></div></div>`;
+      const btn = el.querySelector(".phase-header");
+      btn.addEventListener("click", () => { const o = el.classList.toggle("open"); btn.setAttribute("aria-expanded", o); });
+      rail.appendChild(el);
+    });
+  }
+ 
+  function renderGap() {
+    const g = PROGRESS.gap;
+    const last = g.series[g.series.length-1];
+    const prev = g.series.length>1 ? g.series[g.series.length-2].recall : 0;
+    const jump = Math.round((last.recall - prev)*100);
+    $("recallNum").innerHTML = pct(last.recall) + '<span class="unit">%</span>';
+    $("recallLab").innerHTML = `coupled-fault recall · <span class="up">▲ ${jump} pts at ${last.phase}</span>`;
+    $("faNum").innerHTML = pct(last.fa) + '<span class="unit">%</span>';
+    const margin = ((g.ceiling-last.fa)*100).toFixed(1);
+    $("faLab").innerHTML = last.fa<=g.ceiling ? `false-alarm rate · <span class="ok">✓ ${margin} pts under ${pct(g.ceiling)}% ceiling</span>` : `false-alarm rate · over ceiling`;
+    const W=240,H=68,pad=7,n=g.series.length;
+    const x=(i)=>pad+(W-2*pad)*(n>1?i/(n-1):0);
+    const y=(v)=>pad+(H-2*pad)*(1-v);
+    let path=""; g.series.forEach((s,i)=>{ path+=(i===0?"M":"L")+x(i).toFixed(1)+" "+y(s.recall).toFixed(1)+" "; });
+    let pts=""; g.series.forEach((s,i)=>{ pts+=`<circle cx="${x(i).toFixed(1)}" cy="${y(s.recall).toFixed(1)}" r="3.2" fill="#2997FF"/>`; });
+    const ceilY=y(g.ceiling).toFixed(1);
+    $("spark").innerHTML = `<line x1="${pad}" y1="${ceilY}" x2="${W-pad}" y2="${ceilY}" stroke="#FFA94D" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/><path d="${path}" fill="none" stroke="#2997FF" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>${pts}`;
+  }
+ 
+  function renderLedger() {
+    const L = PROGRESS.ledger, total = L.hand+L.expl+L.debt;
+    const seg=(cls,val,label)=>`<div class="ledger-seg ${cls}" style="flex-basis:${(100*val/total).toFixed(1)}%" title="${label}: ${val}">${val||''}</div>`;
+    $("ledgerBar").innerHTML = seg("hand",L.hand,"Built by hand")+seg("expl",L.expl,"Delegated & explainable")+seg("debt",L.debt,"Not yet understood");
+    const debtTasks = PROGRESS.phases.flatMap(p => p.tasks.filter(t => t.mode === "blackbox").map(t => ({ name: t.name, phase: p.id })));
+    if (debtTasks.length > 0) {
+      $("ledgerDebtNames").innerHTML = '<ul class="ledger-debt-list">' + debtTasks.map(d => `<li class="ledger-debt-item"><span class="debt-phase">${d.phase}</span>${d.name}</li>`).join("") + '</ul>';
+    } else {
+      $("ledgerDebtNames").innerHTML = '<p class="ledger-debt-clear">✓ No black-box debt</p>';
+    }
+    const key=[
+      {sw:"var(--accent)",label:"Built by hand",desc:"The substrate — understood from first principles.",n:L.hand},
+      {sw:"#5A6270",label:"Delegated & explainable",desc:"Delegated, but explained in own words on demand.",n:L.expl},
+      {sw:"var(--warn)",label:"Not yet understood",desc:"Black-box debt. Must trend to zero by P6.",n:L.debt} ];
+    $("ledgerKey").innerHTML = key.map(k=>`<div class="ledger-key-item"><span class="ledger-swatch" style="background:${k.sw}"></span><div><span class="k-label">${k.label} · <span class="k-count">${k.n}</span></span><p class="k-desc">${k.desc}</p></div></div>`).join("");
+  }
+ 
+  function renderDecisions() {
+    $("decisionLog").innerHTML = PROGRESS.decisions.map(d=>`<div class="decision"><span class="decision-phase">${d.phase}</span><div><p class="decision-chose">${d.chose}</p><p class="decision-rej"><span class="x">rejected</span> ${d.rejected}</p></div></div>`).join("");
+  }
+ 
+ 
+  // ---- Guided tour ----
+  (function () {
+    const steps = [
+      { sel: null, title: "This page is the build, in the open", body: "About 90 seconds to see how it works \u2014 the progress, the goal, and the one metric it all comes down to." },
+      { sel: ".pb-top", title: "Where the build stands", body: "Overall completion, progress across the seven phases, and whether the build is ahead of its 30-day schedule. A component only counts once it's both tested and explained." },
+      { sel: ".gap-strip", title: "The number it all comes down to", body: "Coupled-fault recall: catching faults no single sensor reveals, without tripping false alarms. It stays flat, then jumps at P2 when the fusion layer lands." },
+      { sel: ".ledger-bar", title: "Understanding kept honest", body: "Anything delegated to AI but not yet understood is 'debt' here \u2014 the orange slice \u2014 and it has to reach zero before the project is done." },
+      { sel: "#phaseRail .phase:first-child", title: "Seven phases, in order", body: "The work runs as a fixed sequence \u2014 green is cleared, blue is in progress, dim is still locked. Each phase depends on the one before it." },
+      { sel: ".phase.active", scrollBlock: "end", title: "Two ticks, or it isn't done", body: "Inside a phase, every task needs a passing test with captured output AND an explanation from first principles. One without the other doesn't count." },
+      { sel: "#decisionLog", scrollBlock: "end", title: "The roads taken and not taken", body: "Every major fork is logged with what was chosen and what was rejected, so the build is a set of defensible decisions, not just code that happens to work. That's the end of the tour." }
+    ];
+    const overlay = $("tourOverlay"), spot = $("tourSpot"), card = $("tourCard");
+    let cur = 0, curEl = null;
+ 
+    function place(animate) {
+      const vw = window.innerWidth, vh = window.innerHeight, M = 14, headerSafe = 66;
+      const cw = card.offsetWidth, ch = card.offsetHeight;
+      spot.classList.toggle("animate", !!animate);
+      card.classList.toggle("animate", !!animate);
+      if (!curEl) {
+        spot.style.opacity = "0";
+        card.style.left = (vw/2 - cw/2) + "px";
+        card.style.top = (vh/2 - ch/2) + "px";
+        return;
+      }
+      const b = curEl.getBoundingClientRect();
+      let sx = Math.max(M, b.left - 8);
+      let sr = Math.min(vw - M, b.right + 8);
+      let sy = Math.max(headerSafe, b.top - 8);
+      let sb = b.bottom + 8;
+      let below = true;
+      if (sb + M + ch + 12 > vh) {
+        below = false;
+      }
+      if (sb < sy + 40) sb = sy + 40;
+      spot.style.opacity = "1";
+      spot.style.left = sx + "px";
+      spot.style.top = sy + "px";
+      spot.style.width = (sr - sx) + "px";
+      spot.style.height = (sb - sy) + "px";
+      let ct = below ? (sb + M) : (sy - ch - M);
+      ct = Math.max(M, Math.min(ct, vh - ch - M));
+      let cl = (sx + sr) / 2 - cw / 2;
+      cl = Math.max(M, Math.min(cl, vw - cw - M));
+      card.style.left = cl + "px";
+      card.style.top = ct + "px";
+    }
+ 
+    function render() {
+      const s = steps[cur];
+      $("tourCount").textContent = "Guided tour \u00b7 " + (cur + 1) + " / " + steps.length;
+      $("tourTitle").textContent = s.title;
+      $("tourBody").textContent = s.body;
+      $("tourBack").style.visibility = cur === 0 ? "hidden" : "visible";
+      $("tourNext").textContent = cur === steps.length - 1 ? "Done" : "Next \u203a";
+      curEl = s.sel ? document.querySelector(s.sel) : null;
+      card.style.opacity = "0";
+      if (curEl) {
+        const tall = curEl.getBoundingClientRect().height > window.innerHeight - 160;
+        const block = s.scrollBlock || (tall ? "start" : "center");
+        curEl.scrollIntoView({ block, behavior: "auto" });
+        if (tall && !s.scrollBlock) window.scrollBy(0, -100);
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => { place(true); card.style.opacity = "1"; }));
+    }
+ 
+    function open() { cur = 0; overlay.classList.add("on"); render(); }
+    function close() { overlay.classList.remove("on"); }
+    function next() { if (cur < steps.length - 1) { cur++; render(); } else close(); }
+    function back() { if (cur > 0) { cur--; render(); } }
+ 
+    $("heroTour").addEventListener("click", open);
+    $("navTour").addEventListener("click", open);
+    $("tourNext").addEventListener("click", next);
+    $("tourBack").addEventListener("click", back);
+    $("tourSkip").addEventListener("click", close);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    window.addEventListener("keydown", (e) => {
+      if (!overlay.classList.contains("on")) return;
+      if (e.key === "Escape") close(); else if (e.key === "ArrowRight") next(); else if (e.key === "ArrowLeft") back();
+    });
+    window.addEventListener("scroll", () => { if (overlay.classList.contains("on")) place(false); }, { passive: true });
+    window.addEventListener("resize", () => { if (overlay.classList.contains("on")) place(false); });
+  })();
+ 
+  renderNav(); renderProgress(); renderPhases(); renderGap(); renderLedger(); renderDecisions();
+  </script>
+</body>
+</html>
+ 

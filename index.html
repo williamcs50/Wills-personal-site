@@ -334,6 +334,11 @@
       border-radius: 50%;
       background: var(--link);
     }
+    .project-row-link { position: relative; }
+    .row-cover { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+    a.demo-badge { position: relative; z-index: 2; text-decoration: none; transition: border-color 160ms ease, background 160ms ease; }
+    a.demo-badge:hover { border-color: rgba(0,102,204,0.55); background: rgba(0,102,204,0.14); }
+    .demo-badge + .demo-badge { margin-top: 8px; }
     .project-arrow {
       align-self: center;
       font-size: 18px;
@@ -580,7 +585,8 @@
       </div>
 
       <div class="project-list">
-        <a class="project-row" href="orchestrator-case-study.html">
+        <div class="project-row project-row-link">
+          <a class="row-cover" href="orchestrator-case-study.html" aria-label="Rocket Engine Health Orchestrator — case study"></a>
           <div class="project-index">01</div>
           <div class="project-main">
             <h3>Rocket Engine Health Orchestrator</h3>
@@ -597,10 +603,11 @@
               <span>Python</span><span>PyTorch</span><span>Transformers</span><span>CNN</span><span>Three.js</span>
             </div>
             <p class="project-meta">2026 · in active development</p>
-            <span class="demo-badge">Interactive demo</span>
+            <a class="demo-badge" href="orchestrator-case-study.html">Interactive demo</a>
+            <a class="demo-badge" href="build-log.html">Live build log</a>
           </div>
           <div class="project-arrow">›</div>
-        </a>
+        </div>
 
         <a class="project-row" href="turbofan.html">
           <div class="project-index">02</div>
