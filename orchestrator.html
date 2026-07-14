@@ -99,15 +99,15 @@
     </div>
   </div>
   <div class="stage s-ring">
-    <div class="eyebrow">orchestrator&nbsp;//&nbsp;<b>combinatorial assessment</b></div>
+    <div class="eyebrow">orchestrator&nbsp;//&nbsp;<b>coupled-fault assessment</b></div>
     <svg id="ring" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-label="Radial orchestrator"></svg>
   </div>
   <aside class="rail">
-    <h1>Engine Health Orchestrator<span>v0 · prototype</span></h1>
+    <h1>Engine Health Orchestrator<span>v1 · prototype</span></h1>
     <div class="verdict-card" id="vcard">
       <div class="vc-state" id="vstate">monitoring</div>
       <div class="vc-mode" id="vmode">All systems nominal</div>
-      <div class="vc-sub" id="vsub">No combinatorial signature active.</div>
+      <div class="vc-sub" id="vsub">No coupled signature active.</div>
       <div class="vc-conf"><div class="lbl"><span>Assessment confidence</span><span id="vconfval">—</span></div><div class="bar"><i id="vconfbar"></i></div></div>
       <div class="contrib" id="vcontrib"></div>
     </div>
@@ -116,7 +116,7 @@
       <div><i style="background:var(--nominal)"></i> Nominal</div>
       <div><i style="background:var(--caution)"></i> Elevated · sub-threshold</div>
       <div><i style="background:var(--critical)"></i> Individual redline</div>
-      <div><i style="background:var(--verdict)"></i> Combinatorial verdict</div></div></div>
+      <div><i style="background:var(--verdict)"></i> Coupled verdict</div></div></div>
     <div class="foot">EACH STREAM STAYS BELOW ITS OWN REDLINE.<br>THE VERDICT LIVES IN THE COMBINATION.</div>
   </aside>
 </div>
@@ -212,16 +212,16 @@
   function detect(){let best=null;signatures.forEach(sig=>{const vals=sig.members.map(id=>st[id].v);
       if(vals.every(v=>v>=CAUTION)&&vals.every(v=>v<REDLINE)){const avg=vals.reduce((a,b)=>a+b,0)/vals.length,conf=Math.max(0,Math.min(1,(avg-CAUTION)/(REDLINE-CAUTION)))*0.42+0.55;
         if(!best||conf>best.conf)best={sig,conf,members:sig.members};}});
-    if(best)return{kind:"combinatorial",...best};
+    if(best)return{kind:"coupled",...best};
     let red=null;streams.forEach(s=>{if(st[s.id].v>=REDLINE&&!red)red=s.id;});
     if(red)return{kind:"redline",red};
     const elev=streams.filter(s=>st[s.id].v>=CAUTION).map(s=>s.id);
     if(elev.length)return{kind:"elevated",elevated:elev};return{kind:"nominal"};}
   function info(res){
-    if(res.kind==="combinatorial")return{col:"var(--verdict)",state:"combinatorial verdict",mode:res.sig.mode,sub:"Sub-threshold across "+res.members.length+" subsystems — no individual redline.",conf:res.conf,contrib:res.members,active:true};
+    if(res.kind==="coupled")return{col:"var(--verdict)",state:"coupled verdict",mode:res.sig.mode,sub:"Sub-threshold across "+res.members.length+" subsystems — no individual redline.",conf:res.conf,contrib:res.members,active:true};
     if(res.kind==="redline")return{col:"var(--critical)",state:"redline",mode:res.red+" exceeded",sub:"Single-parameter threshold breach.",conf:.99,contrib:[res.red],active:false};
-    if(res.kind==="elevated")return{col:"var(--caution)",state:"tracking",mode:"Elevated streams",sub:"Elevated but no combinatorial signature complete.",conf:0,contrib:res.elevated,active:false};
-    return{col:"var(--nominal)",state:"monitoring",mode:"All systems nominal",sub:"No combinatorial signature active.",conf:0,contrib:[],active:false};}
+    if(res.kind==="elevated")return{col:"var(--caution)",state:"tracking",mode:"Elevated streams",sub:"Elevated but no coupled signature complete.",conf:0,contrib:res.elevated,active:false};
+    return{col:"var(--nominal)",state:"monitoring",mode:"All systems nominal",sub:"No coupled signature active.",conf:0,contrib:[],active:false};}
   const $=id=>document.getElementById(id);
   const vcard=$("vcard"),vstate=$("vstate"),vmode=$("vmode"),vsub=$("vsub"),vconfbar=$("vconfbar"),vconfval=$("vconfval"),vcontrib=$("vcontrib");
   let curKey=null;
@@ -495,19 +495,19 @@
     {step:"02 / 07",title:"Live subsystem streams",scenario:"nominal",target:{sel:"#ring"},
      body:"Each subsystem continuously reports a severity signal. Right now everything is nominal — well below any limit.",
      more:"Every sensor is wrapped by a pluggable detector that normalizes its raw signal into one common format — a severity and a confidence — so detectors can be swapped without touching the orchestrator."},
-    {step:"03 / 07",title:"Failure data, authored in plain language",scenario:"nominal",target:{sel:"#scn"},
-     body:"These failure scenarios aren't hand-coded. An engineer describes a failure mode in plain language and an LLM synthesizes telemetry that reproduces it — so realistic failure data exists on demand, without waiting for scarce real-world failures.",
-     more:"The LLM only proposes scenario parameters; a deterministic, physics-aware layer validates them so nothing unphysical reaches the system. The model proposes, physics constrains."},
+    {step:"03 / 07",title:"Failure data, from physics",scenario:"nominal",target:{sel:"#scn"},
+     body:"These failure scenarios aren't hand-drawn. A reduced-order physics model of the engine generates the telemetry, and a fault is injected as a single physical perturbation — so realistic failure data exists on demand, without waiting for scarce real-world failures.",
+     more:"Because the perturbation flows through the model's own couplings, the multi-channel signature emerges on its own rather than being painted in by hand. The generator authors the fault, so it also holds the ground truth it's scored against."},
     {step:"04 / 07",title:"Each one stays safe — alone",scenario:"bearing",target:{sel:"#ring"},
      body:"Watch three subsystems climb into the amber. Crucially, not one crosses its own redline. Any single-alarm system sees nothing wrong here."},
     {step:"05 / 07",title:"The combination is the signal",scenario:"bearing",target:{center:"#ring",size:210},
      body:"The orchestrator correlates across streams and raises a verdict — naming the failure mode — purely from the joint pattern. That's the whole idea: the danger lives in the combination, not in any single reading.",
-     more:"v1 matches known multi-signal signatures (explainable: this pattern = this named mode). v2 swaps in learned interaction detection to surface combinations no one defined in advance."},
+     more:"v1 is the learned system: trained on what normal looks like, it flags a joint pattern it didn't expect — which is what lets it, in principle, catch coupled faults no one wrote a rule for in advance. (This demo scripts a few illustrative cases to show the idea.)"},
     {step:"06 / 07",title:"Reasoning points back at the metal",scenario:"bearing",target:{sel:".s-engine"},
      body:"The implicated subsystems light up on the engine itself — so an operator sees not just that something is wrong, but where, in physical context."},
     {step:"07 / 07",title:"Built to grow",scenario:"nominal",target:{sel:".wrap"},
-     body:"Pluggable detectors feed a combinatorial orchestrator, which emits a decision through a safety layer. The next version closes the loop — attempting a reduced-thrust mode and continuously re-checking it, instead of a simple shutdown.",
-     more:"Clean interfaces at every seam mean the simple v1 simulators can be replaced with higher-fidelity models — or a live data feed — without changing the orchestrator."}
+     body:"The per-channel streams feed a coupled-fault orchestrator that produces an advisory verdict — it never acts; deterministic redline protection keeps all authority. The next rung is graph attention over a learned channel-influence topology, so a verdict traces to a connected subgraph of channels rather than a flat set.",
+     more:"Clean interfaces at every seam mean the v1 simulators can be replaced with higher-fidelity models — or a live data feed — without changing the orchestrator."}
   ];
   const tourEl=$("tour"),spot=$("tourSpot"),card=$("tourCard"),tourBtn=$("tourBtn"),autoChk=$("tourAuto");
   let ti=0,autoTimer=null,lastR=null;
