@@ -4,16 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rocket Engine Health Orchestrator — William Opyrchal</title>
-  <meta name="description" content="A research prototype for combinatorial fault detection in rocket engines: per-channel encoders fused by attention to catch coupled, sub-threshold faults that per-channel redlines miss." />
+  <meta name="description" content="A research prototype for detecting coupled, sub-threshold faults in rocket engines: per-channel encoders fused by attention to catch what per-channel redlines miss." />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://williamopyrchal.com/orchestrator-case-study.html" />
-  <meta property="og:title" content="Rocket Engine Health Orchestrator — Combinatorial Fault Detection" />
+  <meta property="og:title" content="Rocket Engine Health Orchestrator — Coupled Fault Detection" />
   <meta property="og:description" content="Reading the sensor channels together to catch coupled, sub-threshold faults that conventional redline monitoring is structurally blind to. A research prototype, advisory above the engine's redline protection." />
   <meta property="og:image" content="https://williamopyrchal.com/og-orchestrator.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Rocket Engine Health Orchestrator — Combinatorial Fault Detection" />
+  <meta name="twitter:title" content="Rocket Engine Health Orchestrator — Coupled Fault Detection" />
   <meta name="twitter:description" content="Per-channel encoders fused by attention to catch coupled, sub-threshold faults a single redline would miss. A research prototype." />
   <meta name="twitter:image" content="https://williamopyrchal.com/og-orchestrator.png" />
 
@@ -642,7 +642,7 @@
           combined signature before any single one breaks.
         </p>
         <div class="hero-meta">
-          <span><strong>Stack:</strong> Python &middot; PyTorch &middot; Transformers &middot; CNN &middot; Three.js</span>
+          <span><strong>Stack:</strong> Python &middot; PyTorch &middot; Transformers &middot; Three.js</span>
           <span><strong>Period:</strong> 2026</span>
           <span><strong>Status:</strong> research prototype &middot; early build</span>
         </div>
@@ -688,7 +688,7 @@
         <div class="prose">
           <p>
             When a rocket engine fails, the failure has underlying causes &mdash; a bearing
-            degrading, a valve mis-commanding, combustion turning unstable &mdash; that show up
+            degrading, a valve sticking, combustion turning unstable &mdash; that show up
             across the sensors as they develop. Often they show up <strong>quietly and across many
             channels at once</strong>: vibration creeping up, a temperature trending warm, a pressure
             easing down, each within its own limit but together forming the fault's signature.
@@ -733,7 +733,7 @@
 
           <div class="plot">
             <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg" role="img"
-                 aria-label="Schematic: four sensor channels each sitting in caution but below its redline, fused by the orchestrator into a single verdict naming bearing degradation.">
+                 aria-label="Schematic: four sensor channels each sitting in caution but below its redline, fused by the orchestrator into a single coupled-anomaly verdict, the implicated channels those it weighted most.">
               <rect x="0" y="0" width="800" height="360" fill="#0F1115"/>
               <text x="40" y="42" fill="#C7C7CC" font-family="-apple-system, sans-serif" font-size="14" font-weight="600">Four channels within limits &mdash; one verdict</text>
 
@@ -779,23 +779,23 @@
               <!-- verdict card -->
               <rect x="528" y="142" width="236" height="76" rx="10" fill="#1D1F23" stroke="#2997FF" stroke-opacity="0.6"/>
               <text x="546" y="168" fill="#98989D" font-family="ui-monospace, monospace" font-size="10" letter-spacing="2">VERDICT</text>
-              <text x="546" y="190" fill="#F5F5F7" font-family="-apple-system, sans-serif" font-size="15" font-weight="600">Bearing degradation</text>
+              <text x="546" y="190" fill="#F5F5F7" font-family="-apple-system, sans-serif" font-size="15" font-weight="600">Coupled anomaly</text>
               <rect x="546" y="200" width="150" height="4" rx="2" fill="#232529"/>
               <rect x="546" y="200" width="112" height="4" rx="2" fill="#2997FF"/>
               <text x="546" y="215" fill="#6E6E73" font-family="ui-monospace, monospace" font-size="9" letter-spacing="0.5">confidence</text>
             </svg>
             <p class="plot-caption">
-              Schematic of the combinatorial idea &mdash; illustrative, not measured data. Four
+              Schematic of the coupled-fault idea &mdash; illustrative, not measured data. Four
               channels sit in caution, none past its redline; the orchestrator fuses them into a
-              single verdict and names the channels it weighted most.
+              single coupled-anomaly verdict, drawn from the channels it weighted most.
             </p>
           </div>
 
           <p>
-            Treating the channels as a set that attention fuses is what makes the system
-            <strong>combinatorial</strong> &mdash; the signal lives in the combination, whether that
+            Treating the channels as a set that attention fuses is what lets it read a
+            <strong>coupled</strong> fault &mdash; the signal lives in the combination, whether that
             combination is a temporal cascade or a simultaneous coincidence. That is the whole idea:
-            several channels, each unremarkable alone, resolving into a named assessment while no
+            several channels, each unremarkable alone, resolving into a single clear verdict while no
             single one has crossed a redline.
           </p>
         </div>
@@ -809,27 +809,36 @@
         <div class="prose">
           <h2 style="margin-bottom: 28px;">Per-channel encoders, fused by attention.</h2>
           <p>
-            The v1 prototype models eight representative channels. Every encoder &mdash; whatever its
-            internals &mdash; emits a fixed-length embedding in a shared space, so the fusion layer
-            sees a uniform set of tokens and never depends on how any channel was produced. That
-            shared interface is what makes the system modular: an encoder can be swapped, or a new
-            channel added, without changing anything above it.
+            The v1 prototype models eight representative channels, each read by the same uniform
+            encoder. Every encoder emits a fixed-length embedding in a shared space, so the fusion
+            layer sees a uniform set of tokens and never depends on how any channel was produced. That
+            shared interface is what makes the system modular: a uniform encoder today can later be
+            swapped for one specialized to a channel's physics, or a new channel added, without
+            changing anything above it.
           </p>
-          <h3 style="margin-top: 40px;">Encoders matched to each signal</h3>
+          <h3 style="margin-top: 40px;">Uniform encoders now, specialized later</h3>
+          <p>
+            v1 applies the same encoder to every channel &mdash; the honest baseline. Specializing an
+            encoder to a channel's physics is only worth it once that uniform baseline shows where
+            it falls short, so specialization is a roadmap item, not a v1 assumption. The likely
+            first candidates:
+          </p>
           <ul>
             <li>
-              <strong>Statistical encoders</strong> handle most channels (chamber pressure, bearing
-              and nozzle temperatures, coolant flow, feed pressure): the embedding is a residual
-              against expected behavior &mdash; cheap and legible, and most of the system.
+              <strong>A convolutional encoder (CNN)</strong> for turbopump vibration, whose waveform
+              and frequency-band structure a scalar residual can't represent &mdash; the clearest place a
+              uniform encoder is expected to fall short first.
             </li>
             <li>
-              <strong>A small convolutional encoder (CNN)</strong> handles turbopump vibration,
-              whose waveform and frequency-band structure a scalar residual can't represent.
+              <strong>Statistical residual encoders</strong> for the slower channels (chamber
+              pressure, temperatures, coolant flow, feed pressure), where a residual against expected
+              behavior is cheap and legible.
             </li>
             <li>
-              <strong>The command-to-response model</strong> handles the channels whose meaning is
-              inherently dynamic (shaft speed, mixture ratio), emitting its hidden state as their
-              representation rather than judging them in isolation.
+              <strong>A dynamic command-to-response encoder</strong> for channels whose meaning is
+              tied to recent commands (shaft speed, mixture ratio) &mdash; with the open question of how to
+              add it without breaking the rule that encoders stay pure sensor-summarizers and command
+              context lives in the fusion layer.
             </li>
           </ul>
           <h3 style="margin-top: 40px;">The orchestrator</h3>
@@ -886,7 +895,7 @@
           <p>These hold regardless of how the design evolves:</p>
           <ul>
             <li>The orchestrator must catch coupled, sub-threshold faults that per-channel redlines miss <em>on the same data</em> &mdash; that baseline comparison is the result.</li>
-            <li>Training, calibration, and fault-injection data are generated separately and kept disjoint. The model sees only commands and telemetry at inference time.</li>
+            <li>Training, validation, calibration, and test data are generated separately and kept disjoint, and the test split is touched once. The model sees only commands and telemetry at inference time.</li>
             <li>Attention weights indicate which channels were relevant, not what caused the fault &mdash; and the output is presented honestly about that distinction.</li>
             <li>The system advises; it does not act. Deterministic redline protection keeps all authority.</li>
           </ul>
@@ -910,7 +919,7 @@
           </p>
           <p>
             Faults are <strong>injected as physical perturbations</strong> in that same model &mdash;
-            a bearing degradation is a rising friction term plus a thermal term &mdash; so the
+            a bearing degradation is a single rising friction coefficient &mdash; so the
             multi-channel signature emerges through the model's couplings on its own, rather than
             being drawn into the data by hand. The generator authors the faults, so it holds ground
             truth, which makes it the system's test oracle: known fault in, expected verdict out.
@@ -1018,9 +1027,9 @@
             <div>
               <p class="stack-cat-label">Encoders</p>
               <ul class="stack-list">
-                <li>Statistical residual encoders</li>
-                <li>Convolutional encoder (vibration)</li>
+                <li>Uniform per-channel encoders</li>
                 <li>Shared embedding interface</li>
+                <li>Swappable for specialized encoders</li>
               </ul>
             </div>
             <div>
@@ -1036,7 +1045,7 @@
               <ul class="stack-list">
                 <li>Reduced-order physics model</li>
                 <li>Faults injected as perturbations</li>
-                <li>Disjoint train / calibrate / test</li>
+                <li>Disjoint train / validation / calibrate / test</li>
               </ul>
             </div>
             <div>
@@ -1117,14 +1126,13 @@
     Artifacts "Demo" card both point to orchestrator.html (left as-is).
   - Follows the DESIGN DOC as the authoritative architecture (physics-based
     synthetic generator; learned attention fusion in v1). The interactive
-    demo's guided-tour copy still describes a different mechanism (LLM-synthesized
-    telemetry; v1 = signature matching) — that divergence is unreconciled and
-    flagged for a later pass.
+    demo's guided-tour copy has been updated to match (physics data gen, v1 = learned,
+    advisory verdict, graph-attention roadmap). No divergence.
   - No "Key findings" stats row: the project is early-stage with no published
     results numbers yet. Add a 3-stat row once real metrics exist.
 
   COPY / LINKS FOR WILL TO VERIFY:
-  - The combinatorial schematic SVG is illustrative, not measured data (labeled
+  - The coupled-fault schematic SVG is illustrative, not measured data (labeled
     as such). Replace with a real plot once available.
   - Artifact cards: Code → github.com/williamcs50/rocket-engine-health-orchestrator,
     Writeup → docs/design-doc.md in that repo, Demo → orchestrator.html. All live.
