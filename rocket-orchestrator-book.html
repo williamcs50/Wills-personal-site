@@ -1,0 +1,1463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Rocket Engine Health Orchestrator — How It Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ───────────────────────────────────────────────── */
+:root{
+  /* light body */
+  --paper:#F2F0E8; --card:#FAF9F4; --ink:#1B1C1F; --body:#38393F; --muted:#6E7077;
+  --rule:#DEDACF; --rule-2:#CAC6B6;
+  --blue:#0F6CDE; --red:#CE3B2A; --teal:#1A8075; --amber:#C07818;
+  /* dark plates (original orchestrator palette) */
+  --bg:#070b10; --bg2:#0b121a; --steel:#243441; --steel2:#16202b;
+  --dim:#566571; --ink-d:#aebcc7; --ink-bright:#dce6ee;
+  --nominal:#43b0a6; --caution:#e0a83a; --critical:#ec4a3c; --verdict:#ff6a3d;
+  --f-disp:"Space Grotesk",system-ui,sans-serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono","IBM Plex Mono",Menlo,monospace;
+  --measure:68ch;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--body);font-family:var(--f-body);font-size:1.05rem;line-height:1.7;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* ── RUNNING HEAD ─────────────────────────────────────────── */
+.rhead{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:baseline;gap:1rem;padding:.6rem clamp(1rem,4vw,2.4rem);transition:background .3s,border-color .3s;border-bottom:1px solid transparent;pointer-events:none}
+.rhead.lit{background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px) saturate(1.3);border-bottom-color:var(--rule);pointer-events:auto}
+.rhead .brand{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.rhead nav{margin-left:auto;display:flex;gap:1.2rem;font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.1em}
+.rhead nav a{color:var(--muted);text-decoration:none}.rhead nav a:hover{color:var(--ink)}
+.rhead-back{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;text-decoration:none;flex-shrink:0;pointer-events:auto;transition:color .18s,background .18s,border-color .18s;
+  color:var(--ink-d);background:rgba(7,11,16,0.55);border:1px solid rgba(255,255,255,0.14);border-radius:3px;padding:4px 10px;}
+.rhead-back:hover{color:var(--ink-bright);border-color:rgba(255,255,255,0.3);}
+.rhead.lit .rhead-back{color:var(--muted);background:transparent;border-color:var(--rule);}
+.rhead.lit .rhead-back:hover{color:var(--ink);border-color:var(--rule-2);}
+
+/* ── DARK PLATE (shared base) ─────────────────────────────── */
+.plate{position:relative;overflow:hidden;
+  background:radial-gradient(120% 90% at 42% 30%,#0d1822 0%,var(--bg) 64%);
+  color:var(--ink-bright)}
+.plate::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(36,52,65,.38) 1px,transparent 1px),linear-gradient(90deg,rgba(36,52,65,.38) 1px,transparent 1px);
+  background-size:34px 34px;z-index:0}
+
+/* ── COVER ────────────────────────────────────────────────── */
+.cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+.cover-inner{position:relative;z-index:2;max-width:1100px;width:100%;margin:0 auto;
+  padding:clamp(5rem,11vh,8rem) clamp(1.4rem,5vw,4rem) clamp(2rem,5vh,3.5rem);
+  display:grid;grid-template-columns:1.1fr 1fr;gap:clamp(2rem,6vw,5rem);align-items:center}
+.cover-text .eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--nominal)}
+.cover-text h1{font-family:var(--f-disp);font-weight:700;font-size:clamp(2.6rem,6.5vw,5rem);line-height:.96;letter-spacing:-.03em;margin:.9rem 0 0}
+.cover-text .sub{font-style:italic;font-size:clamp(1rem,2vw,1.3rem);color:#8fa0ad;margin:1rem 0 0;max-width:44ch;line-height:1.5}
+.cover-text .meta{display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;color:var(--dim);margin-top:1.8rem}
+.cover-text .meta b{color:var(--ink-d);font-weight:500}
+.cover-ring{display:flex;justify-content:center}
+.cover-ring svg{width:100%;max-width:420px;height:auto}
+.cover-scroll{position:relative;z-index:2;font-family:var(--f-mono);font-size:.64rem;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);text-align:center;padding:1.3rem 0 1.6rem}
+@media(max-width:760px){.cover-inner{grid-template-columns:1fr}.cover-ring{display:none}}
+
+/* ── TITLE PAGE ───────────────────────────────────────────── */
+.titlepage{min-height:min(88vh,820px);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s6,5rem) 1.4rem;background:var(--paper)}
+.titlepage .eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+.titlepage h1{font-family:var(--f-disp);font-weight:600;font-size:clamp(2rem,5.5vw,3.6rem);line-height:1;letter-spacing:-.025em;margin:1.2rem 0 0;color:var(--ink);max-width:18ch}
+.titlepage .sub{font-style:italic;font-size:1.15rem;color:var(--muted);margin:1rem 0 0;max-width:42ch;line-height:1.5}
+.ornament{display:flex;align-items:center;justify-content:center;gap:.7rem;margin:2rem 0}
+.ornament::before,.ornament::after{content:"";height:1px;width:clamp(40px,14vw,110px);background:var(--rule-2)}
+.ornament .d{width:5px;height:5px;transform:rotate(45deg);background:var(--red)}
+.titlepage .imprint{font-family:var(--f-mono);font-size:.76rem;letter-spacing:.04em;color:var(--muted);line-height:1.9;margin-top:.8rem}
+.titlepage .imprint b{color:var(--ink);font-weight:500}
+/* mini ring on title page */
+.title-ring{width:clamp(100px,22vw,160px);height:auto;margin:.5rem 0 2rem}
+
+/* ── CONTENTS PAGE ────────────────────────────────────────── */
+.toc-page{max-width:var(--measure);margin:0 auto;padding:clamp(3rem,8vh,5.5rem) 1.4rem;scroll-margin-top:4rem}
+.toc-page .kicker{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.toc-page h2{font-family:var(--f-disp);font-weight:600;font-size:clamp(1.8rem,4vw,2.6rem);letter-spacing:-.02em;margin:.5rem 0 0;color:var(--ink);border-bottom:1px solid var(--rule-2);padding-bottom:1.3rem;margin-bottom:0}
+.toc-page .prow{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--red);margin:2rem 0 .6rem}
+.toc-page ol{list-style:none;margin:0;padding:0}
+.toc-page li{display:flex;align-items:baseline;gap:.5rem;padding:.28rem 0;border-bottom:1px solid transparent}
+.toc-page li:hover{border-bottom-color:var(--rule)}
+.toc-page li .n{font-family:var(--f-mono);font-size:.78rem;color:var(--teal);width:2em;flex:none}
+.toc-page li a{color:var(--ink);text-decoration:none;flex:1}
+.toc-page li a:hover{color:var(--blue)}
+.toc-page li .lead{flex:1;border-bottom:1px dotted var(--rule-2);position:relative;top:-.22em;min-width:1rem}
+.toc-page li .f{font-family:var(--f-mono);font-size:.76rem;color:var(--muted)}
+
+/* ── PART PLATE ───────────────────────────────────────────── */
+.part-plate{min-height:min(92vh,860px);display:flex;align-items:center;margin:0;scroll-margin-top:0}
+.part-plate-inner{position:relative;z-index:2;max-width:1100px;width:100%;margin:0 auto;
+  padding:clamp(3.5rem,9vh,6rem) clamp(1.4rem,5vw,4rem);
+  display:grid;grid-template-columns:1.2fr .9fr;gap:clamp(2rem,6vw,5rem);align-items:center}
+.part-plate .eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--nominal);margin-bottom:.9rem;display:block}
+.part-plate .rule-red{border:none;border-top:1px dashed var(--critical);margin:0 0 1.4rem;max-width:60px;opacity:.7}
+.part-plate .num{font-family:var(--f-disp);font-weight:700;font-size:clamp(5rem,17vw,11rem);line-height:.82;color:transparent;-webkit-text-stroke:1.5px var(--dim);opacity:.5;margin:0 0 .12em;letter-spacing:-.04em;display:block}
+.part-plate h2{font-family:var(--f-disp);font-weight:600;font-size:clamp(2.2rem,5.5vw,3.8rem);line-height:1;letter-spacing:-.025em;margin:0}
+.part-plate .lede{font-style:italic;font-size:clamp(1rem,2vw,1.25rem);color:#8fa0ad;max-width:46ch;line-height:1.55;margin:1.1rem 0 0}
+.part-plate .chlist{list-style:none;margin:2.4rem 0 0;padding:1.4rem 0 0;border-top:1px solid rgba(255,255,255,.09);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.45rem 2rem;max-width:640px}
+.part-plate .chlist a{display:flex;gap:.55rem;font-family:var(--f-mono);font-size:.8rem;color:var(--dim);text-decoration:none;align-items:baseline}
+.part-plate .chlist a:hover{color:var(--ink-bright)}
+.part-plate .chlist a .n{color:var(--nominal)}
+.part-plate .ring-col{display:flex;justify-content:center;align-items:center}
+.part-plate .ring-col svg{width:100%;max-width:400px;height:auto}
+@media(max-width:820px){.part-plate-inner{grid-template-columns:1fr}.part-plate .ring-col{display:none}}
+
+/* ── CHAPTER BAND ─────────────────────────────────────────── */
+.ch-band{position:relative;overflow:hidden;scroll-margin-top:0;
+  background:radial-gradient(100% 100% at 70% 50%,#0d1822 0%,var(--bg) 70%);
+  color:var(--ink-bright)}
+.ch-band::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(36,52,65,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(36,52,65,.35) 1px,transparent 1px);
+  background-size:34px 34px;z-index:0}
+.ch-band-inner{position:relative;z-index:2;max-width:calc(var(--measure) + 7rem);margin:0 auto;
+  padding:clamp(1.8rem,5vh,2.8rem) clamp(1.4rem,4vw,2.6rem);
+  display:flex;align-items:center;gap:clamp(1.2rem,3.5vw,2.4rem)}
+.ch-band .num{font-family:var(--f-disp);font-weight:700;font-size:clamp(3rem,9vw,5.5rem);line-height:.88;color:var(--verdict);letter-spacing:-.04em;flex:none}
+.ch-band .txt{flex:1;min-width:0}
+.ch-band .ch-label{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)}
+.ch-band .ch-label b{color:var(--critical);font-weight:500}
+.ch-band h2{font-family:var(--f-disp);font-weight:600;font-size:clamp(1.6rem,4vw,2.5rem);line-height:1.02;letter-spacing:-.02em;margin:.35rem 0 0}
+.ch-band .thesis{font-size:.95rem;color:var(--dim);max-width:50ch;margin:.55rem 0 0;line-height:1.5;display:none}
+.ch-band .mini-ring{width:clamp(64px,10vw,92px);flex:none}
+.ch-band .mini-ring svg{width:100%;height:auto}
+.ch-seam{height:2px;background:var(--ink)}
+@media(max-width:600px){.ch-band .mini-ring{display:none}}
+
+/* ── BODY ─────────────────────────────────────────────────── */
+.body{max-width:var(--measure);margin:0 auto;padding:clamp(2.2rem,5vh,3.4rem) 1.4rem 1rem}
+.body h3{font-family:var(--f-disp);font-weight:600;color:var(--ink);font-size:1.15rem;letter-spacing:-.01em;margin:2.2rem 0 .7rem}
+.body h4{font-family:var(--f-mono);font-size:.88rem;color:var(--ink);margin:1.8rem 0 .5rem;letter-spacing:.02em}
+.body p{margin:0 0 1.2rem}
+.body strong{color:var(--ink);font-weight:600}
+.body em{font-style:italic}
+/* drop cap removed */
+.body ul,.body ol{margin:0 0 1.2rem;padding-left:1.35rem}
+.body li{margin-bottom:.5rem}
+.body li::marker{color:var(--muted)}
+code{font-family:var(--f-mono);font-size:.86em;background:#EAE7DC;border:1px solid var(--rule);padding:.05em .35em;border-radius:3px;color:#333}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+.xref{font-family:var(--f-mono);font-size:.84em;color:var(--teal);border-bottom:1px dotted var(--teal)}
+.xref:hover{text-decoration:none;background:rgba(26,128,117,.08)}
+.callout{border-left:3px solid var(--blue);padding:.15rem 0 .15rem 1.1rem;margin:0 0 1.2rem;font-size:1.1rem;color:var(--ink)}
+.diagram{font-family:var(--f-mono);font-size:.82rem;line-height:1.52;background:#EAE7DC;border:1px solid var(--rule);border-radius:4px;padding:1.2rem;margin:0 0 1.2rem;overflow-x:auto;white-space:pre;color:var(--body)}
+.diagram .cap{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);display:block;margin-bottom:.6rem;white-space:normal}
+.worked{border:1px solid var(--rule-2);border-radius:4px;padding:1.2rem;margin:0 0 1.2rem;background:var(--card)}
+.worked .label{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);display:block;margin-bottom:.6rem}
+.worked .diagram{background:#E6E3D8;margin-bottom:.6rem}
+.worked p:last-child{margin-bottom:0}
+.note{font-size:.96rem;color:var(--muted);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:.75rem 0;margin:0 0 1.2rem}
+.note .nl{font-family:var(--f-mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-right:.5rem}
+.takeaway{background:var(--card);border:1px solid var(--rule-2);border-left:3px solid var(--teal);border-radius:4px;padding:1.1rem 1.4rem;margin:1.8rem 0}
+.takeaway .label{font-family:var(--f-mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.16em;color:var(--teal);display:block;margin-bottom:.35rem}
+.takeaway p{margin:0;font-size:1.05rem;color:var(--ink)}
+.takeaway strong{color:var(--ink)}
+.ledger{border:1px solid rgba(206,59,42,.45);border-radius:4px;margin:1.4rem 0;overflow:hidden}
+.ledger .head{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.13em;color:var(--red);background:rgba(206,59,42,.07);padding:.55rem 1.2rem;border-bottom:1px solid rgba(206,59,42,.25)}
+.ledger .cols{display:grid;grid-template-columns:1fr 1fr}
+.ledger .col{padding:1rem 1.2rem}
+.ledger .col+.col{border-left:1px solid var(--rule-2)}
+.ledger .col h4{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;margin:0 0 .7rem;color:var(--ink)}
+.ledger .col.claims h4::before{content:"✓ ";color:var(--teal)}
+.ledger .col.limits h4::before{content:"✕ ";color:var(--red)}
+.ledger ul{margin:0;padding-left:1.1rem}
+.ledger li{margin-bottom:.4rem;font-size:.95rem}
+@media(max-width:600px){.ledger .cols{grid-template-columns:1fr}.ledger .col+.col{border-left:none;border-top:1px solid var(--rule-2)}}
+/* table */
+.tablewrap{overflow-x:auto;margin:0 0 1.2rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+caption{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);text-align:left;padding-bottom:.5rem}
+th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--rule-2)}
+tbody tr:last-child td{border-bottom:1px solid var(--rule-2)}
+td code{font-size:.83em}
+/* ch-foot removed */
+.ch-foot{display:none}
+
+/* ── MARGIN RAIL ──────────────────────────────────────────── */
+.mrail{
+  position:fixed;left:0;top:0;bottom:0;z-index:45;
+  width:clamp(120px,14vw,180px);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:0 0 0 clamp(.9rem,2vw,1.6rem);
+  pointer-events:none;
+  transition:opacity .35s;
+}
+/* fade out over dark plates — toggled by JS */
+.mrail.on-dark{opacity:0}
+
+.mrail-inner{display:flex;flex-direction:column;gap:0}
+.mrail-part{
+  font-family:var(--f-mono);font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);opacity:.75;
+  margin:1.1rem 0 .35rem;
+  padding-left:.7rem;
+  pointer-events:auto;
+}
+.mrail-part:first-child{margin-top:0}
+.mrail-item{
+  display:flex;align-items:baseline;gap:.45rem;
+  padding:.18rem 0 .18rem .7rem;
+  border-left:1.5px solid transparent;
+  pointer-events:auto;
+  transition:border-color .2s, opacity .2s;
+  text-decoration:none;
+  opacity:.58;
+}
+.mrail-item .rn{
+  font-family:var(--f-mono);font-size:.62rem;color:var(--body);
+  flex:none;width:1.5em;letter-spacing:.04em;
+  transition:color .2s;
+}
+.mrail-item .rt{
+  font-family:var(--f-mono);font-size:.62rem;color:var(--body);
+  line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:9em;
+  transition:color .2s;
+}
+.mrail-item:hover{opacity:.85;text-decoration:none}
+.mrail-item.active{
+  opacity:1;
+  border-left-color:var(--teal);
+}
+.mrail-item.active .rn{color:var(--teal)}
+.mrail-item.active .rt{color:var(--ink)}
+
+/* mobile: collapse to a small menu button */
+.mrail-toggle{
+  display:none;
+  position:fixed;left:1rem;top:50%;transform:translateY(-50%);z-index:46;
+  width:32px;height:32px;border-radius:50%;
+  background:color-mix(in srgb,var(--paper) 80%,transparent);
+  backdrop-filter:blur(6px);border:1px solid var(--rule-2);
+  cursor:pointer;align-items:center;justify-content:center;
+  font-family:var(--f-mono);font-size:.65rem;color:var(--muted);
+  pointer-events:auto;
+}
+.mrail-toggle:hover{color:var(--ink);border-color:var(--rule)}
+
+@media(max-width:1080px){
+  .mrail{display:none}
+  .mrail-toggle{display:flex}
+  .mrail.open{
+    display:flex;width:200px;
+    background:color-mix(in srgb,var(--paper) 94%,transparent);
+    backdrop-filter:blur(10px);
+    border-right:1px solid var(--rule);
+    padding:1.4rem 0 1.4rem clamp(.9rem,2vw,1.4rem);
+    box-shadow:4px 0 24px rgba(0,0,0,.08);
+    opacity:1!important;
+    pointer-events:auto;
+  }
+  .mrail.open .mrail-toggle-close{display:flex}
+}
+
+/* ── END MATTER ───────────────────────────────────────────── */
+.endmatter{max-width:var(--measure);margin:0 auto;padding:0 1.4rem;border-top:1px solid var(--rule-2)}
+.endmatter h2{font-family:var(--f-disp);font-weight:600;font-size:1.6rem;margin:2.5rem 0 1.2rem;color:var(--ink);scroll-margin-top:4.5rem}
+.openitems{list-style:none;padding:0;margin:0}
+.openitems .group{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:1.6rem 0 .5rem}
+.openitems li{padding:.4rem 0 .4rem 2rem;position:relative;border-bottom:1px solid var(--rule);margin:0}
+.openitems li::before{content:attr(data-n);position:absolute;left:0;font-family:var(--f-mono);font-size:.78rem;color:var(--teal)}
+
+/* ── COLOPHON PLATE ───────────────────────────────────────── */
+.colophon{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:clamp(3.5rem,9vh,6rem) clamp(1.4rem,5vw,4rem);margin-top:5rem}
+.colophon-ring{width:clamp(90px,18vw,140px);margin:0 auto 1.6rem}
+.colophon p{font-family:var(--f-mono);font-size:.76rem;line-height:1.9;letter-spacing:.03em;color:var(--dim);max-width:52ch;margin:.8rem auto 0}
+.colophon p b{color:var(--ink-d);font-weight:500}
+.colophon .em{font-family:var(--f-disp);font-style:italic;font-size:1.15rem;color:#a4b0b8;max-width:44ch;margin:0 auto;line-height:1.5}
+</style>
+</head>
+<body>
+<a style="position:absolute;left:-999px" href="#main" id="skip">Skip to content</a>
+
+<!-- ═══════════════ RUNNING HEAD ═══════════════ -->
+<header class="rhead" id="rhead" aria-label="Running head">
+  <a href="index.html" class="rhead-back">‹ Work</a>
+  <span class="brand">Health Orchestrator — How It Works</span>
+  <nav>
+    <a href="#toc">Contents</a>
+    <a href="#part-1">Parts</a>
+    <a href="#glossary">Glossary</a>
+  </nav>
+</header>
+
+<!-- ═══════════════ MARGIN RAIL ═══════════════ -->
+<nav class="mrail" id="mrail" aria-label="Chapter navigation">
+  <div class="mrail-inner">
+    <span class="mrail-part">Part I — The Problem</span>
+    <a class="mrail-item" href="#ch-01"><span class="rn">01</span><span class="rt">To Catch</span></a>
+    <a class="mrail-item" href="#ch-02"><span class="rn">02</span><span class="rt">The Idea</span></a>
+    <span class="mrail-part">Part II — The Data</span>
+    <a class="mrail-item" href="#ch-03"><span class="rn">03</span><span class="rt">Why We Simulate</span></a>
+    <a class="mrail-item" href="#ch-04"><span class="rn">04</span><span class="rt">Shape of a Run</span></a>
+    <a class="mrail-item" href="#ch-05"><span class="rn">05</span><span class="rt">The Command</span></a>
+    <a class="mrail-item" href="#ch-06"><span class="rn">06</span><span class="rt">The Channels</span></a>
+    <a class="mrail-item" href="#ch-07"><span class="rn">07</span><span class="rt">The Fault</span></a>
+    <a class="mrail-item" href="#ch-08"><span class="rn">08</span><span class="rt">Runs, Kept Apart</span></a>
+    <span class="mrail-part">Part III — The Model</span>
+    <a class="mrail-item" href="#ch-09"><span class="rn">09</span><span class="rt">The Encoder</span></a>
+    <a class="mrail-item" href="#ch-10"><span class="rn">10</span><span class="rt">Read Together</span></a>
+    <a class="mrail-item" href="#ch-11"><span class="rn">11</span><span class="rt">Attention</span></a>
+    <a class="mrail-item" href="#ch-12"><span class="rn">12</span><span class="rt">Command Aware</span></a>
+    <a class="mrail-item" href="#ch-13"><span class="rn">13</span><span class="rt">Transformer Block</span></a>
+    <a class="mrail-item" href="#ch-14"><span class="rn">14</span><span class="rt">How It Learns</span></a>
+    <a class="mrail-item" href="#ch-15"><span class="rn">15</span><span class="rt">Pattern vs. Sample</span></a>
+    <a class="mrail-item" href="#ch-16"><span class="rn">16</span><span class="rt">Hyperparameters</span></a>
+    <span class="mrail-part">Part IV — The Verdict</span>
+    <a class="mrail-item" href="#ch-17"><span class="rn">17</span><span class="rt">Anomaly Score</span></a>
+    <a class="mrail-item" href="#ch-18"><span class="rn">18</span><span class="rt">Calibration</span></a>
+    <a class="mrail-item" href="#ch-19"><span class="rn">19</span><span class="rt">What It Claims</span></a>
+    <a class="mrail-item" href="#ch-20"><span class="rn">20</span><span class="rt">Presenting</span></a>
+    <a class="mrail-item" href="#ch-21"><span class="rn">21</span><span class="rt">Commitments</span></a>
+  </div>
+</nav>
+<button class="mrail-toggle" id="mrail-toggle" aria-label="Open chapter navigation">≡</button>
+
+<main id="main">
+<!-- ═══════════════ COVER ═══════════════ -->
+<section class="plate cover" aria-label="Cover">
+  <div class="cover-inner">
+    <div class="cover-text">
+      <span class="eyebrow">Engineering case study · living document</span>
+      <h1>The Rocket Engine Health Orchestrator</h1>
+      <p class="sub">How It Works — a ground-up account of a model that reads the channels together, catching the fault that lives only in the combination.</p>
+      <div class="meta"><span><b>William Opyrchal</b></span><span>2026 · in active development</span><span>Python · PyTorch · Transformers</span></div>
+    </div>
+    <div class="cover-ring"><svg id="ring-cover" viewBox="0 0 1000 1000" aria-label="Orchestrator ring showing bearing degradation verdict"></svg></div>
+  </div>
+  <div class="cover-scroll">How It Works ↓</div>
+</section>
+
+<!-- ═══════════════ TITLE PAGE ═══════════════ -->
+<section class="titlepage">
+  <span class="eyebrow">An engineering case study</span>
+  <h1>The Rocket Engine Health Orchestrator</h1>
+  <p class="sub">How It Works — a ground-up explanation, assuming no prior knowledge.</p>
+  <div class="ornament"><span class="d"></span></div>
+  <svg class="title-ring" id="ring-title" viewBox="0 0 1000 1000" aria-hidden="true"></svg>
+  <p class="imprint"><b>William Opyrchal</b><br>2026 · in active development<br>A living document, revised as the project develops.</p>
+</section>
+
+<!-- ═══════════════ CONTENTS ═══════════════ -->
+<nav class="toc-page" id="toc" aria-label="Table of contents">
+  <span class="kicker">Contents</span>
+  <h2>How It Works</h2>
+  <p class="prow">Part I · The Problem</p>
+  <ol><li><span class="n">01</span><a href="#ch-01">What We Are Trying to Catch</a><span class="lead"></span><span class="f">01</span></li>
+  <li><span class="n">02</span><a href="#ch-02">The Idea</a><span class="lead"></span><span class="f">02</span></li></ol>
+  <p class="prow">Part II · The Data</p>
+  <ol><li><span class="n">03</span><a href="#ch-03">Why We Simulate</a><span class="lead"></span><span class="f">03</span></li>
+  <li><span class="n">04</span><a href="#ch-04">The Shape of a Run</a><span class="lead"></span><span class="f">04</span></li>
+  <li><span class="n">05</span><a href="#ch-05">The Command</a><span class="lead"></span><span class="f">05</span></li>
+  <li><span class="n">06</span><a href="#ch-06">The Channels and Their Physics</a><span class="lead"></span><span class="f">06</span></li>
+  <li><span class="n">07</span><a href="#ch-07">The Fault We Inject</a><span class="lead"></span><span class="f">07</span></li>
+  <li><span class="n">08</span><a href="#ch-08">Many Runs, Kept Apart</a><span class="lead"></span><span class="f">08</span></li></ol>
+  <p class="prow">Part III · The Model</p>
+  <ol><li><span class="n">09</span><a href="#ch-09">The Encoder</a><span class="lead"></span><span class="f">09</span></li>
+  <li><span class="n">10</span><a href="#ch-10">Why the Channels Must Be Read Together</a><span class="lead"></span><span class="f">10</span></li>
+  <li><span class="n">11</span><a href="#ch-11">Attention</a><span class="lead"></span><span class="f">11</span></li>
+  <li><span class="n">12</span><a href="#ch-12">Command Awareness</a><span class="lead"></span><span class="f">12</span></li>
+  <li><span class="n">13</span><a href="#ch-13">Inside a Transformer Block</a><span class="lead"></span><span class="f">13</span></li>
+  <li><span class="n">14</span><a href="#ch-14">How the Model Learns</a><span class="lead"></span><span class="f">14</span></li>
+  <li><span class="n">15</span><a href="#ch-15">Learning the Pattern vs. Memorizing the Sample</a><span class="lead"></span><span class="f">15</span></li>
+  <li><span class="n">16</span><a href="#ch-16">Choosing the Hyperparameters</a><span class="lead"></span><span class="f">16</span></li></ol>
+  <p class="prow">Part IV · The Verdict</p>
+  <ol><li><span class="n">17</span><a href="#ch-17">From Prediction to Anomaly Score</a><span class="lead"></span><span class="f">17</span></li>
+  <li><span class="n">18</span><a href="#ch-18">Calibration</a><span class="lead"></span><span class="f">18</span></li>
+  <li><span class="n">19</span><a href="#ch-19">What the Output Claims</a><span class="lead"></span><span class="f">19</span></li>
+  <li><span class="n">20</span><a href="#ch-20">Presenting the Verdict</a><span class="lead"></span><span class="f">20</span></li>
+  <li><span class="n">21</span><a href="#ch-21">The Commitments</a><span class="lead"></span><span class="f">21</span></li></ol>
+  <p class="prow">End Matter</p>
+  <ol><li><span class="n">—</span><a href="#glossary">Glossary</a><span class="lead"></span><span class="f">·</span></li>
+  <li><span class="n">—</span><a href="#open-items">Open Items</a><span class="lead"></span><span class="f">·</span></li></ol>
+</nav>
+<!-- ═══════════════ PART I ═══════════════ -->
+<section class="plate part-plate" id="part-1">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part I</span>
+      <hr class="rule-red">
+      <span class="num">I</span>
+      <h2>The Problem</h2>
+      <p class="lede">A per-channel redline cannot see a fault that lives only in the combination of channels. Catching that class of fault is the entire purpose.</p>
+      <ul class="chlist">
+        <li><a href="#ch-01"><span class="n">01</span>What We Are Trying to Catch</a></li>
+        <li><a href="#ch-02"><span class="n">02</span>The Idea</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p1" viewBox="0 0 1000 1000" aria-label="Orchestrator ring, nominal"></svg></div>
+  </div>
+</section>
+
+<!-- ── Ch 01 ── -->
+<section id="ch-01">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">01</div>
+  <div class="txt">
+    <span class="ch-label">Part I · <b>Chapter 01</b></span>
+    <h2>What We Are Trying to Catch</h2>
+  </div>
+  <div class="mini-ring"><svg id="ring-01" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div>
+<div class="ch-seam"></div>
+<div class="body">
+<p>A rocket engine is covered in sensors. Each measures one physical quantity — a pressure, a temperature, a speed — many times per second. The resulting stream is <strong>telemetry</strong>, and each individual stream is a <strong>channel</strong>.</p>
+<p>The standard safeguard is a <strong>redline</strong>: a fixed limit on each channel. If chamber pressure exceeds its redline, an alarm fires. Each channel is judged alone, against its own limit. This is simple, fast, trustworthy, and catches any fault severe enough to push one reading out of bounds.</p>
+<p>It has one structural blind spot. Some failures never push a single channel past its limit. They appear as a small, coordinated shift across <em>several</em> channels — sometimes all at once, more often rippling from one to the next over seconds — vibration creeping up, a temperature trending warm, a pressure easing off — each comfortably inside its own redline, but <em>together</em> forming a pattern that does not belong. This is a <strong>coupled, sub-threshold fault</strong>: <em>coupled</em> because the evidence is spread across channels, <em>sub-threshold</em> because none crosses a limit.</p>
+<p>A per-channel redline cannot catch this, and not by accident: it never compares channels to each other, so a fault existing only <em>in the combination</em> is invisible to it by construction.</p>
+<p class="callout">Catching that class of fault is the entire purpose of this project.</p>
+</div>
+<div class="ch-foot"><span></span><a href="#ch-02"><span class="n">Next</span>02 · The Idea →</a></div>
+</section>
+
+<!-- ── Ch 02 ── -->
+<section id="ch-02">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">02</div>
+  <div class="txt">
+    <span class="ch-label">Part I · <b>Chapter 02</b></span>
+    <h2>The Idea</h2>
+  </div>
+  <div class="mini-ring"><svg id="ring-02" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div>
+<div class="ch-seam"></div>
+<div class="body">
+<p>If the fault lives in the <em>relationship between</em> channels, the detector must read the channels <strong>together</strong> rather than one at a time. That is the whole idea in one sentence.</p>
+<p>The system learns what the engine's channels normally do together in a given situation, and flags departures from that joint pattern even when every channel stays within limits. It sits <strong>above</strong> the redline system as an <strong>advisory</strong> layer: the redlines keep all authority to act; this system only offers an earlier, subtler warning that something coordinated is drifting.</p>
+<p>Everything that follows is the construction of that system, in two halves: first the data it learns from (<a class="xref" href="#part-2">Part II</a>), then the model that learns (<a class="xref" href="#part-3">Part III</a>).</p>
+</div>
+<div class="ch-foot"><a href="#ch-01"><span class="n">Previous</span>← 01 · What We Are Trying to Catch</a><a href="#ch-03"><span class="n">Next</span>03 · Why We Simulate →</a></div>
+</section>
+
+<!-- ═══════════════ PART II ═══════════════ -->
+<section class="plate part-plate" id="part-2">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part II</span>
+      <hr class="rule-red">
+      <span class="num">II</span>
+      <h2>The Data</h2>
+      <p class="lede">Two things are needed to build the detector: examples of normal operation, and the exact faults we mean to catch. We have neither — so we simulate.</p>
+      <ul class="chlist">
+        <li><a href="#ch-03"><span class="n">03</span>Why We Simulate</a></li>
+        <li><a href="#ch-04"><span class="n">04</span>The Shape of a Run</a></li>
+        <li><a href="#ch-05"><span class="n">05</span>The Command</a></li>
+        <li><a href="#ch-06"><span class="n">06</span>The Channels and Their Physics</a></li>
+        <li><a href="#ch-07"><span class="n">07</span>The Fault We Inject</a></li>
+        <li><a href="#ch-08"><span class="n">08</span>Many Runs, Kept Apart</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p2" viewBox="0 0 1000 1000" aria-label="Orchestrator ring, nominal"></svg></div>
+  </div>
+</section>
+
+<!-- ── Ch 03 ── -->
+<section id="ch-03">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">03</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 03</b></span><h2>Why We Simulate</h2></div>
+  <div class="mini-ring"><svg id="ring-03" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>To build and test a fault detector we need two things: examples of an engine running normally, and examples of it running with the exact faults we mean to catch. We have neither. No real engine telemetry is available, and deliberately breaking a real engine is not an option.</p>
+<p>So we <strong>simulate</strong>. We write a <strong>generator</strong>: a program that models the engine's physics and produces telemetry — normal runs, and runs with faults injected on purpose. Because the generator authors every fault, it knows the ground truth about each one, which makes it the <strong>test oracle</strong>: the source of the right answers we score the detector against.</p>
+<p class="note"><span class="nl">Note</span>The generator is a <strong>physics model written as code</strong> — equations we run to produce plausible readings. It is <em>not</em> a language model inventing numbers. The values come from physical relationships, so the correlations between channels are consequences of the equations rather than decoration added by hand.</p>
+<p>It is a <strong>reduced-order model</strong>: a simplified stand-in, not a validated simulation of a specific engine. The claim is only that its behavior is physically plausible and correctly coupled — enough to make the detection problem genuine. It sits behind a clean seam, so real telemetry could replace it later without changing anything above it.</p>
+</div>
+<div class="ch-foot"><a href="#ch-02"><span class="n">Previous</span>← 02 · The Idea</a><a href="#ch-04"><span class="n">Next</span>04 · The Shape of a Run →</a></div>
+</section>
+
+<!-- ── Ch 04 ── -->
+<section id="ch-04">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">04</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 04</b></span><h2>The Shape of a Run</h2></div>
+  <div class="mini-ring"><svg id="ring-04" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>Every run has the same simple shape: one-dimensional time series, all on the same clock.</p>
+<ul>
+  <li><strong>1 command channel</strong> — throttle (<a class="xref" href="#ch-05">Ch. 05</a>).</li>
+  <li><strong>8 sensor channels</strong> — the engine's response (<a class="xref" href="#ch-06">Ch. 06</a>).</li>
+  <li><strong>Sampling period: 10 ms</strong> (100 readings/second).</li>
+  <li><strong>Duration: 60 seconds</strong> — one full run, startup to shutdown.</li>
+</ul>
+<p>60 s × 100 Hz = <strong>6,000 timesteps</strong>. With 1 command + 8 sensors, a run is a <strong>9 × 6,000</strong> grid of numbers. Faulted runs carry one extra item: a <strong>label</strong> recording which fault was injected, on which channels, over which time window.</p>
+<p>The label is never shown to the detector. It exists only to score the detector's answers (<a class="xref" href="#ch-08">Ch. 08</a>). That is the entire data format. The physics and couplings are not stored as extra fields — they live <em>inside the shape</em> of these ordinary time series.</p>
+</div>
+<div class="ch-foot"><a href="#ch-03"><span class="n">Previous</span>← 03 · Why We Simulate</a><a href="#ch-05"><span class="n">Next</span>05 · The Command →</a></div>
+</section>
+
+<!-- ── Ch 05 ── -->
+<section id="ch-05">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">05</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 05</b></span><h2>The Command</h2></div>
+  <div class="mini-ring"><svg id="ring-05" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>An engine does not drift on its own; it is <em>commanded</em>. We simulate one command: <strong>throttle</strong>, the master thrust setting. This is a deliberate minimum. One command suffices because a throttle change legitimately moves many channels at once. That coordinated, <em>expected</em> motion is precisely what a fault can be mistaken for, and telling "expected response to a command" from "unexplained fault" is a hard problem in itself. Because throttle is the only command, anything else that might have been an order — such as mixture ratio — is instead a measured response, and lives on the sensor side.</p>
+<p>The throttle follows a simple <strong>profile</strong>: a startup ramp, a steady hold, and a shutdown ramp.</p>
+<p class="callout">"Steady" does not mean "flat."</p>
+<p>At constant throttle, the fast mechanical and pressure channels settle to nearly level values, but the <strong>thermal</strong> channels do not: bearing and nozzle temperatures keep <em>rising</em> as heat accumulates. Normal behavior during the hold is therefore an <strong>expected trajectory</strong> — some channels level, others on a slow warming curve. The fault must be distinguished not from a static value but from that expected trajectory: a degrading bearing warms <em>faster</em> than the normal curve while staying under its redline. That is a departure from an expected path — exactly what a redline misses and a model of normal can catch.</p>
+</div>
+<div class="ch-foot"><a href="#ch-04"><span class="n">Previous</span>← 04 · The Shape of a Run</a><a href="#ch-06"><span class="n">Next</span>06 · The Channels and Their Physics →</a></div>
+</section>
+
+<!-- ── Ch 06 ── -->
+<section id="ch-06">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">06</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 06</b></span><h2>The Channels and Their Physics</h2></div>
+  <div class="mini-ring"><svg id="ring-06" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>The eight sensor channels are the engine's response to throttle: chamber pressure, turbopump speed, turbopump vibration, bearing temperature, nozzle/coolant temperature, coolant flow, feed-line pressure, and mixture ratio.</p>
+<h3>How each channel's model is derived</h3>
+<p>The same four-step recipe applies to every channel: name the governing principle (a conservation law or constitutive relation); pick the timescale; express its dependence on throttle and upstream channels (<em>this is what creates the coupling</em>); and inject faults as a perturbation to a single term in one equation.</p>
+<h3>The eight models</h3>
+<p>The physical chain runs: <strong>throttle → pump → feed → flow → thermal.</strong></p>
+<div class="tablewrap"><table>
+<caption>Table — the eight channel models</caption>
+<thead><tr><th>Channel</th><th>Type</th><th>Model</th></tr></thead>
+<tbody>
+<tr><td>Chamber pressure</td><td>algebraic</td><td><code>Pc ≈ Pc_max · f(throttle)</code></td></tr>
+<tr><td>Turbopump speed</td><td><strong>dynamic</strong></td><td><code>dN/dt = (N_target − N)/τ_N</code></td></tr>
+<tr><td>Feed-line pressure</td><td>algebraic</td><td><code>Pf ≈ k · N²</code> — pump affinity laws</td></tr>
+<tr><td>Coolant flow</td><td>algebraic</td><td><code>Q ≈ c · √(ΔP)</code> — Bernoulli flow</td></tr>
+<tr><td>Mixture ratio</td><td>algebraic</td><td>oxidizer/fuel ratio; drifts only if flows imbalance</td></tr>
+<tr><td>Turbopump vibration</td><td>amplitude</td><td><code>V ≈ g(N) + noise</code></td></tr>
+<tr><td>Bearing temperature</td><td><strong>dynamic</strong></td><td><code>dTb/dt = (1/C)[Q_friction(N) − h·(Tb − T_amb)]</code></td></tr>
+<tr><td>Nozzle/coolant temp</td><td><strong>dynamic</strong></td><td><code>dTn/dt = (1/C)[k₁·Pc − k₂·Q·(Tn − T_in)]</code></td></tr>
+</tbody></table></div>
+<h3>Why coupling is the whole point</h3>
+<p>The channels are <strong>not independent</strong>. Feed pressure is a function of pump speed; flow of feed pressure; both temperatures of upstream channels. So a perturbation anywhere <strong>ripples downstream on its own</strong>. Only three things must be right: the <strong>direction</strong> of each dependence, the <strong>relative magnitude</strong>, and the <strong>dynamics</strong> (instant vs. lagging). That is enough to make the coupled-fault problem genuine.</p>
+</div>
+<div class="ch-foot"><a href="#ch-05"><span class="n">Previous</span>← 05 · The Command</a><a href="#ch-07"><span class="n">Next</span>07 · The Fault We Inject →</a></div>
+</section>
+
+<!-- ── Ch 07 ── -->
+<section id="ch-07">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">07</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 07</b></span><h2>The Fault We Inject</h2></div>
+  <div class="mini-ring"><svg id="ring-07" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>We have described the <em>class</em> of fault we are hunting. Now we must specify one, precisely — because a fault that is not defined cannot be injected, and a fault that is not injected cannot be detected.</p>
+<h3>The requirement</h3>
+<p>The fault has to satisfy three conditions simultaneously: <strong>coupled</strong> (it must move several channels), <strong>sub-threshold</strong> (no single channel may cross its redline), and <strong>detectable</strong> (the joint pattern must become clearly abnormal within the 60-second window). Condition 2 fights condition 3: push the fault harder and it trips a redline; soften it and it never becomes findable. <strong>The fault must live in the narrow band between those two failures.</strong></p>
+<h3>The v1 fault: bearing degradation</h3>
+<p>We inject a single physical perturbation: <strong>progressive bearing wear</strong>, expressed as a slowly rising friction coefficient in the turbopump. We perturb one term in the bearing-temperature equation:</p>
+<div class="diagram">dTb/dt = (1/C)[ Q_friction(N) − h·(Tb − T_amb) ]
+                └──────────┘
+                 we perturb this term</div>
+<p>Everything that follows happens <strong>through the model's own couplings</strong>: bearing temperature rises, vibration grows, turbopump speed sags slightly, feed-line pressure and coolant flow ease with it. Five channels have moved. <em>Not one</em> has moved far. <strong>Every one stays comfortably inside its redline.</strong></p>
+<p>But the <em>combination</em> is impossible. In normal operation, at fixed throttle, bearing temperature does not climb <em>while</em> speed droops <em>while</em> vibration grows. It is a broken relationship — precisely what a model of normal, reading the channels together, can see.</p>
+<p class="note"><span class="nl">Limitation</span>A v1 with a single fault type proves the thesis but does not prove generality. Until we test a second, structurally different fault, we will have shown the system detects <em>this</em> fault, not that it detects <em>unfamiliar</em> faults. That distinction matters and is easy to blur.</p>
+<h3>The onset</h3>
+<p>The fault begins partway through the steady hold, where throttle is constant, and grows gradually. Onset <strong>rate</strong> is the parameter that must be tuned into the narrow band: too fast and a channel eventually crosses a redline; too slow and the deviation stays buried in sensor noise when the run ends.</p>
+<p>There is no way to derive the right rate from first principles. It is set by generating candidate faults and checking two things directly: does every channel stay under its redline for the whole run, and does the joint deviation clear the noise floor before shutdown? The rate that satisfies both is the one we keep. <em>(Open item 3.)</em></p>
+</div>
+<div class="ch-foot"><a href="#ch-06"><span class="n">Previous</span>← 06 · The Channels</a><a href="#ch-08"><span class="n">Next</span>08 · Many Runs, Kept Apart →</a></div>
+</section>
+
+<!-- ── Ch 08 ── -->
+<section id="ch-08">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">08</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 08</b></span><h2>Many Runs, Kept Apart</h2></div>
+  <div class="mini-ring"><svg id="ring-08" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>One run is never enough. "Normal" is a <strong>range</strong>, not a single trace. So the generator produces many normal runs (varying slightly, so the system learns normal as a <em>distribution</em>) and many faulted runs (differing in fault type, severity, and onset time).</p>
+<h3>The four splits</h3>
+<p><strong>1. Training</strong> — <em>normal runs only.</em> The runs the model learns from. Nothing about quality can be judged here, because it has effectively been given the answers.</p>
+<p><strong>2. Validation</strong> — <em>held out, but consulted repeatedly</em> while building the model. Because we make decisions against it, we gradually tune ourselves toward it. Validation is honest but <strong>consumable</strong>.</p>
+<p><strong>3. Calibration</strong> — a separate set, held out from training. Used after training to rescale the model's confidence so it matches observed accuracy. Must be fitted on runs the model did <strong>not</strong> train on.</p>
+<p><strong>4. Test</strong> — runs the model has never seen, in any capacity. Touched <strong>once</strong>, at the very end, to produce the number we report.</p>
+<div class="takeaway"><span class="label">The principle underneath</span><p><strong>Telemetry goes in; the answers stay out.</strong> The data used to <em>produce</em> an answer can never also be used to <em>check</em> it — because a system tested on what it was built from is grading its own work.</p></div>
+<p><strong>Leakage destroys the instrument.</strong> If a test run appears in training, the model can score well simply by recognizing it. The test then measures memory rather than understanding, and reports a reassuring result that means nothing.</p>
+<p>Keeping the splits disjoint requires more than good intent. In practice: no run appears in more than one split; random seeds differ so the generator cannot accidentally reproduce an assignment; fault signatures are not shared across splits; and the test split is committed before any result is seen. Violate any of these conditions and the score you report is not the one the system actually earned.</p>
+</div>
+<div class="ch-foot"><a href="#ch-07"><span class="n">Previous</span>← 07 · The Fault We Inject</a><a href="#ch-09"><span class="n">Next</span>09 · The Encoder →</a></div>
+</section>
+<!-- ═══════════════ PART III ═══════════════ -->
+<section class="plate part-plate" id="part-3">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part III</span>
+      <hr class="rule-red">
+      <span class="num">III</span>
+      <h2>The Model</h2>
+      <p class="lede">A channel's meaning is relational, not self-contained. The model must read the channels together — and the mechanism that does it is attention.</p>
+      <ul class="chlist">
+        <li><a href="#ch-09"><span class="n">09</span>The Encoder</a></li>
+        <li><a href="#ch-10"><span class="n">10</span>Reading Channels Together</a></li>
+        <li><a href="#ch-11"><span class="n">11</span>Attention</a></li>
+        <li><a href="#ch-12"><span class="n">12</span>Command Awareness</a></li>
+        <li><a href="#ch-13"><span class="n">13</span>Inside a Transformer Block</a></li>
+        <li><a href="#ch-14"><span class="n">14</span>How the Model Learns</a></li>
+        <li><a href="#ch-15"><span class="n">15</span>Pattern vs. Sample</a></li>
+        <li><a href="#ch-16"><span class="n">16</span>Choosing the Hyperparameters</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p3" viewBox="0 0 1000 1000" aria-label="Orchestrator ring, bearing degradation verdict"></svg></div>
+  </div>
+</section>
+
+<!-- ── Ch 09 ── -->
+<section id="ch-09">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">09</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 09</b></span><h2>The Encoder</h2></div>
+  <div class="mini-ring"><svg id="ring-09" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>A channel's current <em>value</em> is not enough to judge it. What matters is its recent <em>behavior</em>: its level, whether it is trending, how fast, how noisy. Behavior exists only across time, so the model must look at a <strong>window</strong> — the last <em>x</em> readings of that channel. An <strong>encoder</strong> turns one such window into a short, fixed-size list of numbers called an <strong>embedding</strong>.</p>
+<h3>What one encoder actually sees</h3>
+<p class="callout">One encoder reads one window of one channel. Not the whole run; not all eight channels.</p>
+<p>With a window of <strong>100 samples</strong> compressed to an embedding of <strong>16 numbers</strong>:</p>
+<div class="diagram">100 numbers in  →  [encoder]  →  16 numbers out</div>
+<p>There are <strong>eight encoders</strong>, one per channel, run in parallel. The model <strong>slides the window</strong> along the run one position at a time, yielding a <strong>sequence of ~6,000 verdicts</strong> — not one summary. That is what lets us watch a fault <em>develop</em>. Whether those eight encoders share a single set of weights — one encoder applied to each channel in turn — or each has its own is left open; it is a design choice settled empirically in early testing, not a matter of principle. Either way the structure is identical; only the number of distinct weight sets differs.</p>
+<h3>The atom: weighted sum, bias, squash</h3>
+<p>Take the input numbers, multiply each by a <strong>weight</strong>, add them, add a <strong>bias</strong>. Then apply a <strong>squash</strong> (ReLU: if negative, output 0; otherwise pass through). Stacked weighted sums without a squash collapse back into a single straight line; the squash is what supplies the bend that lets the encoder represent curved, thresholded relationships.</p>
+<div class="worked">
+<span class="label">Worked example — hand size (3 → 2)</span>
+<p>The real encoder is 100 → 16 (1,600 weights). Here is the identical structure shrunk so every number is visible:</p>
+<div class="diagram">out_1 = squash( w11·t1 + w12·t2 + w13·t3 + b1 )
+out_2 = squash( w21·t1 + w22·t2 + w23·t3 + b2 )</div>
+<p>3 inputs × 2 outputs = <strong>6 weights</strong> (+ 2 biases). <strong>The embedding size (2) is how many numbers come out; the weights (6) are the knobs inside.</strong> Nothing changes at full size but the counts.</p>
+</div>
+<div class="tablewrap"><table>
+<caption>Table — hand size vs. actual</caption>
+<thead><tr><th></th><th>Hand-size</th><th>Actual</th></tr></thead>
+<tbody>
+<tr><td>Window in</td><td>3 samples</td><td><strong>100 samples</strong></td></tr>
+<tr><td>Embedding out</td><td>2 numbers</td><td><strong>16 numbers</strong></td></tr>
+<tr><td>Weights</td><td>6</td><td><strong>1,600</strong></td></tr>
+</tbody></table></div>
+<p class="note"><span class="nl">Honest note</span>Nobody proved that multiply-add-and-bend is the right primitive. It is simple, cheap, tunable — and when built up and trained, <strong>it turned out to work</strong>, repeatedly, across enormously varied problems. The tidy justifications came <em>after</em> the results. Trust the scoreboard, not the elegance of the story.</p>
+</div>
+<div class="ch-foot"><a href="#ch-08"><span class="n">Previous</span>← 08 · Many Runs, Kept Apart</a><a href="#ch-10"><span class="n">Next</span>10 · Reading Channels Together →</a></div>
+</section>
+
+<!-- ── Ch 10 ── -->
+<section id="ch-10">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">10</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 10</b></span><h2>Why the Channels Must Be Read Together</h2></div>
+  <div class="mini-ring"><svg id="ring-10" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>After encoding we have eight embeddings, one per channel. Each was produced by an encoder that saw only its own channel, so they know nothing about each other.</p>
+<p>Here is the problem in one observation: <strong>whether a channel's behavior is normal usually depends on what the other channels are doing.</strong></p>
+<p>Bearing temperature is rising. Normal? Unanswerable alone. <em>If</em> pump speed just increased, it is ordinary. <em>If</em> pump speed is flat and throttle has not moved, the same rise is suspicious.</p>
+<p class="callout">Identical bearing-temperature embedding; opposite meaning — decided entirely by the other channels.</p>
+<p>A channel's meaning is <strong>relational</strong>, not self-contained. The mechanism that places each channel in the context of the others is <strong>attention</strong> (<a class="xref" href="#ch-11">Ch. 11</a>).</p>
+</div>
+<div class="ch-foot"><a href="#ch-09"><span class="n">Previous</span>← 09 · The Encoder</a><a href="#ch-11"><span class="n">Next</span>11 · Attention →</a></div>
+</section>
+
+<!-- ── Ch 11 ── -->
+<section id="ch-11">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">11</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 11</b></span><h2>Attention</h2></div>
+  <div class="mini-ring"><svg id="ring-11" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>Each channel must draw information from the others that bear on it. The model needs a number for every pair — <em>how much should channel A pull from channel B, right now?</em> — that is <strong>data-dependent</strong>, <strong>asymmetric</strong>, and <strong>learned</strong>. Attention, built from the weighted sum of <a class="xref" href="#ch-09">Ch. 09</a> plus a dot product, delivers exactly this.</p>
+<h3>Move 1 — Scoring</h3>
+<p>The dot product measures alignment. But <strong>relevance is not similarity</strong>: bearing-temp needs pump speed because speed <em>explains</em> its warming, yet the two are different quantities. Raw similarity would score exactly the pairing we most need <em>low</em>. And relevance is asymmetric — A may need B while B does not need A — which the symmetric dot product cannot express.</p>
+<p>The fix: push each embedding through a learned weight matrix first — a different matrix for <strong>asking</strong> vs. <strong>offering</strong> — then compare:</p>
+<div class="diagram">score(A→B)  =  (M₁ · E_A) · (M₂ · E_B)
+                └────────┘   └────────┘
+                 A asking     B offering  (query · key)</div>
+<div class="worked">
+<span class="label">Worked example — asymmetric scoring</span>
+<div class="diagram">query_beartemp = M₁ · [2,1,0] = [2, 1, -1]
+key_speed      = M₂ · [0,3,1] = [3, 1,  3]
+score(beartemp → speed) = 6 + 1 − 3 = 4
+
+query_speed    = M₁ · [0,3,1] = [ 2, 3, 3 ]
+key_beartemp   = M₂ · [2,1,0] = [ 1, 4, 3 ]
+score(speed → beartemp) = 2 + 12 + 9 = 23</div>
+<p>Same two channels, same embeddings — <strong>different scores (4 vs. 23)</strong>, purely because the matrices differ by role. That is the asymmetry, working.</p>
+</div>
+<h3>Move 2 — Retrieving</h3>
+<p>Raw scores become proportions via <strong>softmax</strong>. A third learned matrix <code>M₃</code> produces each channel's <strong>value</strong> — what it hands over if attended to. Each channel's updated embedding is then the weighted sum of everyone's values:</p>
+<div class="diagram">For each channel i:
+  query_i  =  M₁ · E_i          ← what I need
+  key_j    =  M₂ · E_j          ← what each offers
+  score(i→j) = query_i · key_j  ← learned, asymmetric
+  weights  =  softmax(scores)
+  value_j  =  M₃ · E_j          ← what each hands over
+  new_E_i  =  Σⱼ weightⱼ × value_j</div>
+<p><strong>Before: eight isolated summaries. After: eight context-aware summaries</strong>, each having absorbed exactly what it needed. The three matrices (M₁, M₂, M₃) are shared across all eight channels — channels behave differently because their embeddings differ, not because each gets its own set.</p>
+<p class="note"><span class="nl">Naming + honest note</span><em>Attention</em> is the operation; a <em>transformer</em> is the architecture built around it. Our fusion layer is a small transformer over 8 channel-embeddings; an LLM is an enormous one over word-embeddings. Nobody derived attention from first principles. It satisfies the three requirements and <strong>turned out to work</strong>. Trust the scoreboard.</p>
+</div>
+<div class="ch-foot"><a href="#ch-10"><span class="n">Previous</span>← 10 · Reading Channels Together</a><a href="#ch-12"><span class="n">Next</span>12 · Command Awareness →</a></div>
+</section>
+
+<!-- ── Ch 12 ── -->
+<section id="ch-12">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">12</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 12</b></span><h2>Command Awareness</h2></div>
+  <div class="mini-ring"><svg id="ring-12" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>During a throttle ramp, many coupled channels move at once. The system sees correlated multi-channel motion and flags an anomaly — <strong>but nothing is wrong.</strong> This is the <strong>false-alarm trap</strong>: a commanded throttle change produces the same correlated multi-channel motion as a coupled fault.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Sensors moving together…</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>…and throttle just moved</td><td><strong>normal</strong> — expected response to a command</td></tr>
+<tr><td>…and throttle is flat</td><td><strong>suspicious</strong> — motion with no commanded cause</td></tr>
+</tbody></table></div>
+<p>The model must not ask <em>"is this pattern unusual?"</em> but <strong>"is this pattern unusual <em>given the throttle history</em>?"</strong></p>
+<h3>Where the command enters — three options, two rejected</h3>
+<p><strong>Option 1 — Throttle as a ninth channel.</strong> Give it an encoder like the others and let it sit in the set attention reads.</p>
+<p><em>Rejected:</em> this gives the command no structural priority. Throttle becomes one of nine items attention may weigh — and the model is free to weight it near zero. Nothing forces the sensors to be interpreted relative to the command; it is merely permitted. But command context is not one input among many, it is the frame the others are judged against. Making it a peer misrepresents its role.</p>
+<p><strong>Option 2 — Bake throttle into every encoder.</strong> Feed each sensor encoder its own channel and the throttle.</p>
+<p><em>Rejected:</em> this <strong>couples the encoders to command logic.</strong> An encoder does one clean job — summarize one channel. Mix command reasoning in and every encoder becomes partly a command-response model, impossible to tune or debug independently.</p>
+<p><strong>Option 3 — Handle it in the fusion layer. ← the choice</strong></p>
+<p>Keep the encoders pure sensor-summarizers. Let the <strong>fusion layer</strong> — where the channels are already being read together — also consult the <strong>command history</strong>.</p>
+<p><em>Why this wins:</em> "Does the throttle history explain what all these channels are doing?" is a question about the <strong>joint state</strong>, and the <strong>fusion layer</strong> is exactly where the <strong>joint state</strong> is assembled. The concern lives where it belongs; the encoders stay modular; command reasoning lives in one place.</p>
+<h3>The mechanism: cross-attention</h3>
+<p>Command awareness uses the identical machinery of <a class="xref" href="#ch-11">Ch. 11</a>, pointed at a different set:</p>
+<div class="diagram">SELF-ATTENTION:   queries ← 8 channels,  keys/values ← 8 channels
+CROSS-ATTENTION:  queries ← 8 channels,  keys/values ← command history</div>
+<p>Each channel asks <em>"what in the recent throttle history explains what I am doing?"</em> and pulls in whatever is relevant. Or it attends and finds nothing — throttle is flat, no part of it explains a bearing warming while speed droops.</p>
+<p class="callout">That is the fault signal: not "the sensors moved," but "the sensors moved and the command history offers no account of it."</p>
+<p>The command side must be a short <em>sequence</em> of recent throttle readings — not a single value — because the dynamic channels have time constants: bearing temperature is still warming from a ramp that finished seconds ago.</p>
+</div>
+<div class="ch-foot"><a href="#ch-11"><span class="n">Previous</span>← 11 · Attention</a><a href="#ch-13"><span class="n">Next</span>13 · Inside a Transformer Block →</a></div>
+</section>
+
+<!-- ── Ch 13 ── -->
+<section id="ch-13">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">13</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 13</b></span><h2>Inside a Transformer Block</h2></div>
+  <div class="mini-ring"><svg id="ring-13" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>A real <strong>transformer block</strong> wraps three further pieces around attention. None is a new idea — each is repetition or elaboration of what you already have.</p>
+<h3>Multi-head attention</h3>
+<p>One set of matrices forces every channel into a <em>single</em> judgment about relevance. A channel may need several relationships at once — mechanical context <em>and</em> thermal context. The fix: <strong>run attention several times in parallel, with different matrices.</strong> Each is a <strong>head</strong>; their blends are concatenated and mixed by one more learned matrix.</p>
+<h3>The feed-forward network (FFN)</h3>
+<p>Attention <em>moves</em> information between channels; it does little <em>processing</em> of what it moves. So each block follows attention with a small FFN applied independently to each channel:</p>
+<div class="diagram">16 numbers  →  expand to ~64  →  squash  →  contract back to 16</div>
+<div class="tablewrap"><table>
+<thead><tr><th>Component</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><strong>Attention</strong></td><td>moves information <strong>between</strong> channels</td></tr>
+<tr><td><strong>FFN</strong></td><td>processes information <strong>within</strong> each channel</td></tr>
+</tbody></table></div>
+<h3>Residual connections, normalization, stacking</h3>
+<p>A <strong>residual connection</strong> adds the block's output to its input (<code>output = input + block(input)</code>), so each block learns a <em>correction</em>. <strong>Normalization</strong> keeps training stable. <strong>Stacking</strong> lets relationships compose. For eight channels, starting with one or two blocks is right.</p>
+<div class="diagram">8 channel embeddings
+        │
+   ┌────▼──────────────────────────────┐
+   │  self-attention (multi-head)      │  ← channels read each other
+   │  + residual, normalize            │
+   ├───────────────────────────────────┤
+   │  cross-attention → command hist.  │  ← "does throttle explain this?"
+   │  + residual, normalize            │
+   ├───────────────────────────────────┤
+   │  feed-forward (expand/contract)   │  ← process within each channel
+   │  + residual, normalize            │
+   └────┬──────────────────────────────┘
+        ↓
+   joint representation → anomaly score</div>
+<p>Every component is built from two operations: <strong>the weighted sum</strong> and <strong>the dot product</strong>. Nothing else.</p>
+</div>
+<div class="ch-foot"><a href="#ch-12"><span class="n">Previous</span>← 12 · Command Awareness</a><a href="#ch-14"><span class="n">Next</span>14 · How the Model Learns →</a></div>
+</section>
+
+<!-- ── Ch 14 ── -->
+<section id="ch-14">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">14</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 14</b></span><h2>How the Model Learns</h2></div>
+  <div class="mini-ring"><svg id="ring-14" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>The encoder's weights start <strong>random</strong>, so the encoder starts useless. Learning is the process of tuning them, repeated over the normal training runs: <strong>predict</strong> (feed a slice through the model), <strong>measure the error</strong> (the loss function), <strong>assign blame</strong> (the gradient, computed by backpropagation), <strong>step</strong> (nudge every weight downhill by the learning rate), and <strong>repeat</strong> until the loss falls and levels off — this is called <strong>convergence</strong>.</p>
+<p><strong>Updates happen per batch, not per run.</strong> A <strong>batch</strong> is a small chunk of data; many batches fit inside one 6,000-step run. The weights are nudged many times within each run — a steady trickle of tiny adjustments, not one correction at the end.</p>
+<p>Because the model only ever sees <strong>normal</strong> runs, the only way it can lower its loss is to internalize the real structure of normal operation. Shown a fault later, it predicts poorly — and that poor prediction is the signal.</p>
+<h3>Two ways to phrase the prediction</h3>
+<p><strong>Forecasting</strong>: show timesteps 1–100, predict 101. <strong>Reconstruction</strong>: show 1–100, rebuild 1–100 through the embedding bottleneck. Both yield a residual; both work for anomaly detection. Which suits this problem is an empirical question. <em>(Open item.)</em></p>
+<h3>Epochs: the same data, many times over</h3>
+<p>One full pass through the training data is an <strong>epoch</strong>, and training runs for many of them — tens, sometimes hundreds.</p>
+<p>Why repeat? Because each update is deliberately tiny — that is what the learning rate is for. One pass nudges the weights a little way toward good values, nowhere near all the way.</p>
+<p>But repetition is also precisely the pressure that tips into memorization (<a class="xref" href="#ch-15">Ch. 15</a>). So the number of epochs is not fixed in advance; it is watched. Train until held-out error stops improving and begins to creep upward, then stop. That moment is where learning-the-pattern turns into memorizing-the-sample. This is <strong>early stopping</strong> (<a class="xref" href="#ch-16">Ch. 16</a>).</p>
+<div class="tablewrap"><table>
+<thead><tr><th></th><th>Training</th><th>Inference</th></tr></thead>
+<tbody>
+<tr><td>Weights</td><td><strong>being updated</strong></td><td><strong>frozen</strong></td></tr>
+<tr><td>Learning algorithm</td><td>running</td><td>not running</td></tr>
+<tr><td>Data does what</td><td>changes the weights</td><td>changes only the outputs</td></tr>
+</tbody></table></div>
+<p><strong>The freeze is what makes detection possible.</strong> If weights kept updating on the data they were judging, the model would quietly learn the fault and the anomaly signal would vanish.</p>
+<h3>This is how essentially all modern AI is trained</h3>
+<p>An LLM learns by repeatedly predicting the next word of ordinary text — the text is its own answer key — using this identical loop. Ours predicts sensor readings; the normal telemetry is its own answer key. Both are <strong>self-supervised</strong>: the data supervises itself, with no hand-labeling.</p>
+<p>The named machinery is shared everywhere: <strong>gradient descent</strong> (in practice stochastic gradient descent on random batches, often with a refined step rule called Adam) driven by backpropagation. It powers image recognition, speech, recommendation, protein folding, and fraud detection alike. Fraud detection is our closest cousin — it also learns normal and flags the outlier, applied to spending instead of an engine.</p><p>The learning algorithm is indifferent to how many channels there are. It learns relationships among a set of vectors; it does not know or care what they represent or how many there are. Everything domain-specific lives in how you turn your problem into a set of vectors — not in the learning itself.</p>
+<p>Three differences from an LLM are worth holding: data (coupled physical time series, not text), scale (eight channels, not the internet), and — the important one — goal. An LLM is deployed for its good predictions. We train ours to predict normal well precisely so that its bad predictions become informative. <strong>For us, the errors are the product.</strong></p>
+</div>
+<div class="ch-foot"><a href="#ch-13"><span class="n">Previous</span>← 13 · Inside a Transformer Block</a><a href="#ch-15"><span class="n">Next</span>15 · Pattern vs. Sample →</a></div>
+</section>
+
+<!-- ── Ch 15 ── -->
+<section id="ch-15">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">15</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 15</b></span><h2>Learning the Pattern vs. Memorizing the Sample</h2></div>
+  <div class="mini-ring"><svg id="ring-15" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>The training data is only a <strong>sample</strong>, standing in for the world. Every sample contains structure that predicts the target repeatably (real signal) <em>and</em> structure that predicts it accidentally. The model cannot tell them apart from training data alone — both reduce training error.</p>
+<p><strong>Overfitting</strong> is latching onto the accidental structure. The tell-tale sign: <strong>training error keeps falling while held-out error starts rising.</strong> Three independent cures:</p>
+<ul>
+  <li><strong>More data</strong> — a coincidence in run 12 is contradicted by runs 1–500.</li>
+  <li><strong>Less capacity</strong> — a smaller embedding leaves no room to store coincidences.</li>
+  <li><strong>Regularization</strong> — directly penalize complexity.</li>
+</ul>
+<p><strong>This is the project's deepest risk.</strong> Our fault lives in subtle cross-channel correlations. The danger is that the model latches onto a correlation that is real but incidental to our synthetic runs — an artifact of the generator. The question to keep asking: <strong>is this correlation a feature of engine physics, or a coincidence of this sample?</strong></p>
+<p>More training data helps — up to a point. The curve flattens once the model has seen the true variety of normal operation. Beyond that, adding runs does not improve detection, because the ceiling is set by the fault itself: it is deliberately sub-threshold, so no quantity of normal training data makes it obvious. More data shrinks variance; it cannot shrink the detection trade-off.</p>
+</div>
+<div class="ch-foot"><a href="#ch-14"><span class="n">Previous</span>← 14 · How the Model Learns</a><a href="#ch-16"><span class="n">Next</span>16 · Choosing the Hyperparameters →</a></div>
+</section>
+
+<!-- ── Ch 16 ── -->
+<section id="ch-16">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">16</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 16</b></span><h2>Choosing the Hyperparameters</h2></div>
+  <div class="mini-ring"><svg id="ring-16" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>Training sets the <strong>parameters</strong>. It cannot set the <strong>hyperparameters</strong> — the choices that define the model before training starts.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Hyperparameter</th><th>Provisional value</th></tr></thead>
+<tbody>
+<tr><td>Window size <em>x</em></td><td>100 samples (1 s)</td></tr>
+<tr><td>Embedding size <em>y</em></td><td>16</td></tr>
+<tr><td>Attention heads</td><td>4</td></tr>
+<tr><td>Blocks</td><td>1–2</td></tr>
+<tr><td>Learning rate</td><td>—</td></tr>
+<tr><td>Batch size</td><td>—</td></tr>
+<tr><td>Number of epochs</td><td>governed by early stopping</td></tr>
+<tr><td>Objective</td><td>forecast vs. reconstruct (open)</td></tr>
+</tbody></table></div>
+<p>Embedding size has a U shape: too small and the fault's subtle signature is compressed away; too large and the encoder memorizes training-run quirks; right-sized and the bottleneck forces distillation of signal from noise. <strong>Finding that band is a sweep, not a derivation.</strong></p>
+<p class="callout">After any search, automated or not, the test set is the only honest number left.</p>
+<p><strong>Early stopping</strong>: train until held-out error stops improving and starts creeping upward — then stop. That moment is where learning-the-pattern turns into memorizing-the-sample.</p>
+<p>The honest approach is manual before automated. Vary one hyperparameter at a time, form a hypothesis, confirm or refute it, then move to the next. Manual search builds intuition and catches obvious mistakes before they compound. Automated search — grid, random, or Bayesian — covers more ground but creates a specific trap: run it long enough and you find not the best hyperparameters, but the ones that got lucky on the validation set. The callout above is the only real protection.</p>
+</div>
+<div class="ch-foot"><a href="#ch-15"><span class="n">Previous</span>← 15 · Pattern vs. Sample</a><a href="#ch-17"><span class="n">Next</span>17 · Anomaly Score →</a></div>
+</section>
+<!-- ═══════════════ PART IV ═══════════════ -->
+<section class="plate part-plate" id="part-4">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part IV</span>
+      <hr class="rule-red">
+      <span class="num">IV</span>
+      <h2>The Verdict</h2>
+      <p class="lede">The model's job is not to predict for its own sake, but to be wrong in a useful way — and to report that wrongness so a human can act on it.</p>
+      <ul class="chlist">
+        <li><a href="#ch-17"><span class="n">17</span>Anomaly Score and Threshold</a></li>
+        <li><a href="#ch-18"><span class="n">18</span>Calibration</a></li>
+        <li><a href="#ch-19"><span class="n">19</span>What the Output Claims</a></li>
+        <li><a href="#ch-20"><span class="n">20</span>Presenting the Verdict</a></li>
+        <li><a href="#ch-21"><span class="n">21</span>The Commitments</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p4" viewBox="0 0 1000 1000" aria-label="Orchestrator ring, coupled verdict active"></svg></div>
+  </div>
+</section>
+
+<!-- ── Ch 17 ── -->
+<section id="ch-17">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">17</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 17</b></span><h2>From Prediction to Anomaly Score, and the Threshold</h2></div>
+  <div class="mini-ring"><svg id="ring-17" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>At inference the model predicts what each channel <em>should</em> be doing given the throttle and recent past. The gap between prediction and reality is the <strong>residual</strong>. On a normal run, residuals stay small. When a fault develops, the joint prediction degrades and residuals grow.</p>
+<p>This catches the coupled fault because the model learned the normal <strong>relationships between</strong> channels, not merely their normal levels. A coupled fault breaks those relationships while each channel stays in range — so the residual is large <em>because the joint pattern is wrong</em>. Scoring happens <em>after</em> the combination, which is exactly what lets a single number reflect a pattern spread across channels.</p>
+<p>To turn a score into a decision we draw a <strong>threshold</strong>, which forces an unavoidable trade-off: too low catches every fault but fires on normal runs; too high is quiet but misses subtle faults.</p>
+<div class="takeaway"><span class="label">The honest goal</span><p><strong>High fault recall at an acceptable false-alarm rate</strong> — measured against a false-alarm ceiling <strong>fixed in advance</strong>, so the result cannot be massaged afterward.</p></div>
+</div>
+<div class="ch-foot"><a href="#ch-16"><span class="n">Previous</span>← 16 · Choosing the Hyperparameters</a><a href="#ch-18"><span class="n">Next</span>18 · Calibration →</a></div>
+</section>
+
+<!-- ── Ch 18 ── -->
+<section id="ch-18">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">18</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 18</b></span><h2>Calibration: Making the Confidence Honest</h2></div>
+  <div class="mini-ring"><svg id="ring-18" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>The system reports a <strong>confidence</strong>, and by default it is systematically <strong>overconfident</strong>: it will report 95% certainty where it is right only 70% of the time. For an advisory safety system that is unacceptable — an operator told "95% confident nothing is wrong" by a 70%-reliable system is being <strong>actively misled toward complacency</strong>.</p>
+<p class="callout">Of all the moments where the system says 85%, it should be right about 85% of the time.</p>
+<p>The fix is <strong>post-hoc calibration</strong>: a small adjustment applied after training. The standard method is <strong>temperature scaling</strong> — divide the raw scores by a single learned number before converting to probabilities. It must be fitted on the calibration split — runs the model did not train on — because on its own training runs the model's errors are unrepresentatively small.</p>
+<p>Calibration does <strong>not</strong> improve detection. It is monotonic — it does not reorder anything, so recall and false-alarm rate are unchanged; any threshold you could set before calibration you can still set after. <strong>What it changes is whether the number attached to a verdict can be trusted.</strong> For an advisory system, that is not optional. For this system, a score of 0.85 after calibration means the current engine state is more unusual than 85% of the normal states the model has seen, evaluated under similar commanded conditions — so a throttle ramp does not register as anomalous simply because it is rare.</p>
+</div>
+<div class="ch-foot"><a href="#ch-17"><span class="n">Previous</span>← 17 · Anomaly Score</a><a href="#ch-19"><span class="n">Next</span>19 · What the Output Claims →</a></div>
+</section>
+
+<!-- ── Ch 19 ── -->
+<section id="ch-19">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">19</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 19</b></span><h2>What the Output Claims, and What It Does Not</h2></div>
+  <div class="mini-ring"><svg id="ring-19" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>The output is an anomaly flag, a confidence, and a short ranked list of the channels the model weighted most. Those channels are <strong>relevant, not causal</strong>. Where a fault <em>originates</em> and where it <em>shows up</em> are often different channels. The ranking comes from attention weights — and what a model attends to is not guaranteed to be what it truly relied on.</p>
+<div class="ledger">
+  <div class="head">What the output claims — and what it does not</div>
+  <div class="cols">
+    <div class="col claims">
+      <h4>Claims</h4>
+      <ul>
+        <li>Here is where the pattern broke — <strong>start looking here.</strong></li>
+        <li>These are the channels the model weighted most.</li>
+        <li>A starting point for investigation, earlier than a redline would give.</li>
+      </ul>
+    </div>
+    <div class="col limits">
+      <h4>Does not claim</h4>
+      <ul>
+        <li>This is what <strong>caused</strong> the fault.</li>
+        <li>This is a diagnosis.</li>
+        <li>Attention weight equals what the model truly relied on.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<p>We hold this line strictly because overclaiming is how an advisory tool becomes dangerous: an operator who reads "bearing temperature caused this" may chase the wrong thing. Determining cause remains the engineer's job.</p>
+</div>
+<div class="ch-foot"><a href="#ch-18"><span class="n">Previous</span>← 18 · Calibration</a><a href="#ch-20"><span class="n">Next</span>20 · Presenting the Verdict →</a></div>
+</section>
+
+<!-- ── Ch 20 ── -->
+<section id="ch-20">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">20</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 20</b></span><h2>Presenting the Verdict</h2></div>
+  <div class="mini-ring"><svg id="ring-20" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>This chapter adds no mechanism, and it is still necessary — because the system's purpose is to get <em>a human engineer</em> looking at the right place earlier than a redline would, and that purpose fails entirely if the human cannot read the output.</p>
+<p class="callout">An unreadable verdict is not a partial success. It is ignored — and an ignored advisory system is exactly as valuable as no system at all.</p>
+<p>There is a symmetry worth stating. This system exists because high-dimensional, correlated state is unreadable to a per-channel monitor. Hand a person eight channels, a score, and a set of attention weights and they face the same problem. <strong>The interface exists to do for the human what the fusion layer did for the data.</strong></p>
+<p>Three things must land, in descending order of how fast they must land: <strong>State</strong> (is anything wrong — legible before a single number is read, carried by color), <strong>Where</strong> (which channels carry the anomaly), and <strong>How sure</strong> (the calibrated confidence).</p>
+<h3>The verdict must point at metal</h3>
+<p>A ranked list of channel names is an abstraction. <strong>A glowing bearing on a picture of the engine is a location.</strong> The verdict is mapped back onto a spatial layout of the physical engine — a ring layout, channels arranged around the engine, the implicated ones brightening and drawing inward as a verdict forms. The evidence visibly assembles from several channels into one conclusion — the thesis itself made visible.</p>
+<p>And it must show the contrast: the same drift run <strong>side by side with the conventional per-channel view</strong>, every individual limit sitting quiet while the orchestrator flags the combined signature. That is the entire claim of <a class="xref" href="#ch-01">Ch. 01</a>, demonstrated rather than asserted.</p>
+<h3>Honesty must be built into the design, not appended to it</h3>
+<p><a class="xref" href="#ch-19">Ch. 19</a> committed to a hard line: the ranked channels indicate relevance, not cause. That commitment is easy to honor in a document and easy to betray in an interface. An interface that displays <em>"Bearing degradation — 87%"</em> in large type has made a causal claim, whatever the footnote says. <strong>Presentation is a claim.</strong></p>
+<p>The design must convey, structurally and not parenthetically: these are the channels the model weighted, not the channels that failed; this is a starting point for investigation, not a diagnosis. If the interface cannot say those things while still being fast to read, then it is the interface that must be redesigned — not the honesty that must be relaxed.</p>
+</div>
+<div class="ch-foot"><a href="#ch-19"><span class="n">Previous</span>← 19 · What the Output Claims</a><a href="#ch-21"><span class="n">Next</span>21 · The Commitments →</a></div>
+</section>
+
+<!-- ── Ch 21 ── -->
+<section id="ch-21">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">21</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 21</b></span><h2>The Commitments</h2></div>
+  <div class="mini-ring"><svg id="ring-21" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+<p>Five constraints hold regardless of how the design evolves:</p>
+<ol>
+  <li><strong>It must beat the baseline it claims to beat.</strong> The system must catch coupled, sub-threshold faults that per-channel redlines miss <em>on the same data</em>.</li>
+  <li><strong>The data stays disjoint.</strong> Training, validation, calibration, and test splits are generated separately and kept apart. The test split is touched once. At inference, the model sees only commands and telemetry — labels stay out.</li>
+  <li><strong>Attention indicates relevance, not cause</strong> — and the output says so.</li>
+  <li><strong>The system advises; it does not act.</strong> Deterministic redline protection keeps all authority.</li>
+  <li><strong>The verdict must be legible.</strong> An output a human cannot read under pressure is an output that will be ignored.</li>
+</ol>
+</div>
+<div class="ch-foot"><a href="#ch-20"><span class="n">Previous</span>← 20 · Presenting the Verdict</a><a href="#glossary"><span class="n">Next</span>Glossary →</a></div>
+</section>
+
+<!-- ═══════════════ END MATTER ═══════════════ -->
+<div class="endmatter">
+<h2 id="glossary">Glossary</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><strong>Channel</strong></td><td>One sensor's stream of readings over time</td></tr>
+<tr><td><strong>Redline</strong></td><td>A fixed limit on a single channel</td></tr>
+<tr><td><strong>Coupled, sub-threshold fault</strong></td><td>A fault visible only in the joint pattern across channels, with no channel crossing its limit</td></tr>
+<tr><td><strong>Generator</strong></td><td>The physics-model code producing simulated telemetry; also the test oracle</td></tr>
+<tr><td><strong>Label</strong></td><td>Recorded ground truth for a faulted run — used only for grading, never shown to the model</td></tr>
+<tr><td><strong>Split</strong></td><td>A non-overlapping group of runs: training / validation / calibration / test</td></tr>
+<tr><td><strong>Window</strong></td><td>The last <em>x</em> readings of one channel — the encoder's input</td></tr>
+<tr><td><strong>Encoder</strong></td><td>A function turning one window into a fixed-size embedding</td></tr>
+<tr><td><strong>Embedding</strong></td><td>The encoder's output: a short list of numbers summarizing a channel's recent behavior</td></tr>
+<tr><td><strong>Weight / bias</strong></td><td>The parameters inside a model — the numbers training adjusts</td></tr>
+<tr><td><strong>Squash (activation)</strong></td><td>A fixed bend (e.g. ReLU) applied after a weighted sum; adds no parameters</td></tr>
+<tr><td><strong>Hyperparameter</strong></td><td>A setting chosen in advance (window size, embedding size, squash type, learning rate)</td></tr>
+<tr><td><strong>Loss</strong></td><td>One number measuring how wrong a prediction was</td></tr>
+<tr><td><strong>Gradient / backpropagation</strong></td><td>The direction to nudge each weight / the method for computing it</td></tr>
+<tr><td><strong>Gradient descent</strong></td><td>Repeatedly stepping weights downhill on the loss</td></tr>
+<tr><td><strong>Batch</strong></td><td>The small chunk of data processed per weight update</td></tr>
+<tr><td><strong>Convergence</strong></td><td>When the loss stops falling meaningfully</td></tr>
+<tr><td><strong>Inference</strong></td><td>Running the trained model with weights frozen</td></tr>
+<tr><td><strong>Overfitting</strong></td><td>Latching onto correlations that hold in the sample but not the world</td></tr>
+<tr><td><strong>Attention</strong></td><td>The operation letting each channel draw from the others by data-computed relevance</td></tr>
+<tr><td><strong>Query / key / value</strong></td><td>An embedding pushed through three different learned matrices: what I need / what I advertise / what I hand over</td></tr>
+<tr><td><strong>Softmax</strong></td><td>Turns raw scores into positive weights summing to 1</td></tr>
+<tr><td><strong>Self-attention</strong></td><td>Attention where queries and keys/values come from the same set (the 8 channels)</td></tr>
+<tr><td><strong>Cross-attention</strong></td><td>Attention where queries come from one set and keys/values from another (channels → command history)</td></tr>
+<tr><td><strong>Multi-head</strong></td><td>Several attention mechanisms in parallel, each with its own matrices</td></tr>
+<tr><td><strong>FFN</strong></td><td>The expand-then-contract layer following attention; processes within each channel</td></tr>
+<tr><td><strong>Transformer</strong></td><td>The architecture built around attention</td></tr>
+<tr><td><strong>Epoch</strong></td><td>One full pass over the training data</td></tr>
+<tr><td><strong>Early stopping</strong></td><td>Halting training when held-out error stops improving</td></tr>
+<tr><td><strong>Calibration</strong></td><td>A post-training rescaling so a stated confidence matches observed accuracy</td></tr>
+<tr><td><strong>Residual</strong></td><td>The gap between predicted-normal and actual</td></tr>
+<tr><td><strong>Anomaly score</strong></td><td>A single number per moment, summarizing how far the joint state is from normal</td></tr>
+<tr><td><strong>Threshold</strong></td><td>The line on the anomaly score that turns it into a flag</td></tr>
+<tr><td><strong>Recall / false-alarm rate</strong></td><td>Fraction of faults caught / fraction of normal runs wrongly flagged</td></tr>
+</tbody></table></div>
+
+<h2 id="open-items">Open Items</h2>
+<p style="color:var(--muted);font-size:.95rem">The conceptual design is complete end to end. What remains is decision and measurement, not explanation.</p>
+<ul class="openitems">
+  <p class="group">Decisions to make</p>
+  <li data-n="1">Training objective — forecasting or reconstruction (Ch. 14). A fork, not a sequence; pick one and justify it on held-out score.</li>
+  <li data-n="2">Numerical constants — nominal operating values, ranges, noise magnitudes, redline limits, and the time constants τ for the three dynamic channels (Ch. 6).</li>
+  <li data-n="3">Fault onset rate — tuned into the narrow band where no channel crosses a redline yet the joint deviation clears the noise floor within the run (Ch. 7).</li>
+  <li data-n="4">Hyperparameters — window size x, embedding size y, heads, blocks, learning rate, batch size (Ch. 16). Manual exploration first; automated sweep second.</li>
+  <p class="group">To build</p>
+  <li data-n="5">The generator — the reduced-order physics model (Ch. 6), the fault injector (Ch. 7), and the split machinery (Ch. 8).</li>
+  <li data-n="6">The redline baseline — the conventional per-channel detector we must beat. Without it, the central claim of Ch. 1 is untested.</li>
+  <li data-n="7">The model — encoders (Ch. 9), fusion layer with self- and cross-attention (Ch. 11–13), training loop (Ch. 14).</li>
+  <li data-n="8">Calibration — temperature scaling on the calibration split (Ch. 18).</li>
+  <p class="group">To prove</p>
+  <li data-n="9">The target test — recall at a pre-registered false-alarm ceiling, on the untouched test split, against the redline baseline, on the same data (Ch. 17, Ch. 21).</li>
+  <li data-n="10">A second fault type — structurally different from bearing wear (Ch. 7). Until then we have shown the system detects this fault, not that it detects unfamiliar ones.</li>
+  <p class="group">Known risks</p>
+  <li data-n="11">Generator artifacts — the deepest risk in the project (Ch. 15). A correlation that is real but incidental to our synthetic runs would look like signal in training and evaporate on new data.</li>
+  <li data-n="12">Interpretability limits — attention weights show what the model attended to, not what it relied on, and never what caused the fault (Ch. 19). The output must say so.</li>
+  <li data-n="13">The interface — the ring layout, severity colour, verdict routing, and the side-by-side contrast against the per-channel view (Ch. 20). The contrast display is not a nicety: it is the claim of Ch. 1, demonstrated.</li>
+</ul>
+</div>
+
+<!-- ═══════════════ COLOPHON PLATE ═══════════════ -->
+<section class="plate colophon" aria-label="Colophon">
+  <div class="colophon-ring"><svg id="ring-col" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+  <p class="em">"Trust the scoreboard, not the elegance of the story."</p>
+  <p>The Rocket Engine Health Orchestrator · <b>How It Works</b><br>
+  A living document, revised as the project develops.<br>
+  Set in <b>Space Grotesk</b>, system sans, and <b>IBM Plex Mono</b>.<br>
+  <b>William Opyrchal</b> · 2026 · williamopyrchal.com</p>
+</section>
+
+</main>
+<footer style="border-top:1px solid rgba(255,255,255,.08);padding:1.2rem clamp(1rem,4vw,2.5rem);font-family:var(--f-mono);font-size:.7rem;color:var(--muted);text-align:center;letter-spacing:.04em;background:var(--bg2)">
+  © 2026 William Opyrchal · draft complete in concept; open on decisions, construction, and evidence
+</footer>
+<script>
+(function(){
+"use strict";
+/* ════════════════════════════════════════════════════════
+   RING RENDERER  — adapted from orchestrator_2_11_04_PM.html
+   Draws any SVG with id="ring-*" using the original color
+   tokens and geometry, with per-ring scenario control.
+════════════════════════════════════════════════════════ */
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SVG = "http://www.w3.org/2000/svg";
+const COL = {nominal:"#43b0a6", caution:"#e0a83a", critical:"#ec4a3c", verdict:"#ff6a3d"};
+const colKey = v => v>=86?"critical":v>=60?"caution":"nominal";
+const colVar = v => COL[colKey(v)];
+const streams = ["Pc","Vib","Nrpm","Tbrg","Qcool","Tnoz","MR","Pfeed"];
+const N = streams.length;
+const BASE = 34, CAUTION = 60, REDLINE = 86, HIST = 46;
+const signatures = [
+  {key:"bearing", members:["Vib","Tbrg","Nrpm"]},
+  {key:"combust", members:["Pc","Tnoz","MR"]},
+  {key:"feed",    members:["Pfeed","MR","Pc"]}
+];
+const scenarioOff = {
+  nominal: {},
+  bearing: {Vib:34,Tbrg:32,Nrpm:30},
+  combust: {Pc:33,Tnoz:34,MR:31},
+  feed:    {Pfeed:35,MR:30,Pc:29}
+};
+
+const el = (t,a) => {
+  const e = document.createElementNS(SVG,t);
+  for(const k in a) e.setAttribute(k,a[k]);
+  return e;
+};
+
+/* ---- build one ring ---- */
+function buildRing(svgEl, opts) {
+  opts = opts || {};
+  const CX=500, CY=500, R=opts.R||320, HUB=opts.HUB||120;
+  const tiny = opts.tiny; // mini-ring: strip labels/values/sparks
+
+  /* defs + glow */
+  const defs = el("defs");
+  const filtId = "glow-" + svgEl.id;
+  const filt = el("filter",{id:filtId,x:"-60%",y:"-60%",width:"220%",height:"220%"});
+  const blur = el("feGaussianBlur",{stdDeviation:tiny?"3":"6",result:"b"});
+  const mg = el("feMerge");
+  mg.appendChild(el("feMergeNode",{in:"b"}));
+  mg.appendChild(el("feMergeNode",{in:"SourceGraphic"}));
+  filt.appendChild(blur); filt.appendChild(mg);
+  defs.appendChild(filt); svgEl.appendChild(defs);
+
+  /* concentric rings */
+  [R+58,R,HUB+46,HUB].forEach((r,i) =>
+    svgEl.appendChild(el("circle",{cx:CX,cy:CY,r,fill:"none",stroke:"var(--steel2)","stroke-width":i===1?1.4:1})));
+
+  /* tick marks */
+  if(!tiny){
+    for(let i=0;i<120;i++){
+      const a=i*(2*Math.PI/120), r0=R-(i%5===0?14:7);
+      svgEl.appendChild(el("line",{
+        x1:CX+r0*Math.cos(a),y1:CY+r0*Math.sin(a),
+        x2:CX+R*Math.cos(a),y2:CY+R*Math.sin(a),
+        stroke:"var(--steel2)","stroke-width":i%5===0?1.1:.6}));
+    }
+  }
+
+  /* link layer */
+  const linkLayer = el("g"); svgEl.appendChild(linkLayer);
+
+  /* hub */
+  const hubG = el("g"); svgEl.appendChild(hubG);
+  const hubFill = el("circle",{cx:CX,cy:CY,r:HUB-6,fill:"rgba(67,176,166,0.04)"});
+  const hubArc  = el("circle",{cx:CX,cy:CY,r:HUB-6,fill:"none",
+    stroke:COL.nominal,"stroke-width":2.2,"stroke-linecap":"round",
+    "stroke-dasharray":"4 600",transform:`rotate(-90 ${CX} ${CY})`,
+    filter:`url(#${filtId})`});
+  const hubRing = el("circle",{cx:CX,cy:CY,r:HUB,fill:"none",stroke:"var(--steel)","stroke-width":1.4});
+  hubG.append(hubFill,hubArc,hubRing);
+
+  let hubLabel,hubBig,hubConf;
+  if(!tiny){
+    hubLabel = el("text",{x:CX,y:CY-14,"text-anchor":"middle",fill:"var(--dim)",
+      "font-family":"IBM Plex Mono,monospace","font-size":"13","letter-spacing":"3"});
+    hubLabel.textContent = "MONITORING";
+    hubBig = el("text",{x:CX,y:CY+20,"text-anchor":"middle",fill:"var(--ink-bright)",
+      "font-family":"Space Grotesk,sans-serif","font-size":"30","font-weight":"600"});
+    hubBig.textContent = "—";
+    hubConf = el("text",{x:CX,y:CY+50,"text-anchor":"middle",fill:"var(--dim)",
+      "font-family":"IBM Plex Mono,monospace","font-size":"12","letter-spacing":"1.5"});
+    hubG.append(hubLabel,hubBig,hubConf);
+  }
+
+  /* node position helper */
+  const nodePos = i => {
+    const a = -Math.PI/2 + i*(2*Math.PI/N);
+    return {a, x:CX+R*Math.cos(a), y:CY+R*Math.sin(a)};
+  };
+
+  /* nodes */
+  const state = {};
+  streams.forEach(s => { state[s] = {v:BASE, hist:Array(HIST).fill(BASE)}; });
+
+  const nodes = streams.map((s,i) => {
+    const p = nodePos(i), g = el("g"); svgEl.appendChild(g);
+    const halo = el("circle",{cx:p.x,cy:p.y,r:13,fill:"none",
+      stroke:COL.verdict,"stroke-width":1.6,opacity:0});
+    const dot = el("circle",{cx:p.x,cy:p.y,r:7,fill:COL.nominal,
+      stroke:"var(--bg)","stroke-width":2});
+    g.append(halo,dot);
+
+    let valEl, spark, sx, sy, sw, sh;
+    if(!tiny){
+      const ux=Math.cos(p.a), uy=Math.sin(p.a);
+      const lx=CX+(R+34)*ux, ly=CY+(R+34)*uy;
+      const anchor = ux>0.25?"start":ux<-0.25?"end":"middle";
+      const label = el("text",{x:lx,y:ly-12,"text-anchor":anchor,fill:"var(--ink)",
+        "font-family":"Space Grotesk,sans-serif","font-size":"15","font-weight":"500"});
+      label.textContent = s;
+      valEl = el("text",{x:lx,y:ly+6,"text-anchor":anchor,fill:"var(--dim)",
+        "font-family":"IBM Plex Mono,monospace","font-size":"13"});
+      sw=92; sx=anchor==="start"?lx:anchor==="end"?lx-sw:lx-sw/2; sy=ly+24; sh=22;
+      g.append(el("line",{x1:sx,y1:sy,x2:sx+sw,y2:sy,stroke:"var(--steel2)","stroke-width":1}));
+      spark = el("polyline",{fill:"none",stroke:COL.nominal,"stroke-width":1.6,
+        "stroke-linejoin":"round",points:""});
+      g.append(spark,label,valEl);
+    }
+    return {id:s,dot,halo,val:valEl,spark,sx,sy,sw,sh,state};
+  });
+
+  /* sparkline points */
+  const sparkPts = nd => {
+    if(!nd.spark) return "";
+    const h=state[nd.id].hist, step=nd.sw/(HIST-1); let p="";
+    for(let i=0;i<h.length;i++)
+      p+=(nd.sx+i*step).toFixed(1)+","+(nd.sy-(Math.max(0,Math.min(100,h[i]))/100)*nd.sh).toFixed(1)+" ";
+    return p.trim();
+  };
+
+  /* link drawing */
+  let dashOff = 0;
+  function drawLinks(members,col){
+    linkLayer.textContent="";
+    if(!members) return;
+    const idx = id => streams.indexOf(id);
+    members.forEach(id=>{
+      const p=nodePos(idx(id)), ux=CX-p.x, uy=CY-p.y, len=Math.hypot(ux,uy);
+      const hx=CX-ux/len*HUB, hy=CY-uy/len*HUB;
+      const sp=el("line",{x1:p.x,y1:p.y,x2:hx,y2:hy,stroke:col,
+        "stroke-width":1.6,opacity:.55,"stroke-dasharray":"3 7"});
+      sp.classList.add("flow"); linkLayer.appendChild(sp);
+    });
+    for(let i=0;i<members.length;i++) for(let j=i+1;j<members.length;j++){
+      const a=nodePos(idx(members[i])), b=nodePos(idx(members[j]));
+      const path=el("path",{d:`M ${a.x} ${a.y} Q ${CX} ${CY} ${b.x} ${b.y}`,
+        fill:"none",stroke:col,"stroke-width":1.8,opacity:.8,"stroke-dasharray":"5 9"});
+      path.classList.add("flow"); linkLayer.appendChild(path);
+    }
+  }
+
+  /* detection */
+  function detect(){
+    let best=null;
+    signatures.forEach(sig=>{
+      const vals=sig.members.map(id=>state[id].v);
+      if(vals.every(v=>v>=CAUTION)&&vals.every(v=>v<REDLINE)){
+        const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+        const conf=Math.max(0,Math.min(1,(avg-CAUTION)/(REDLINE-CAUTION)))*0.42+0.55;
+        if(!best||conf>best.conf) best={sig,conf,members:sig.members};
+      }
+    });
+    if(best) return{kind:"coupled",...best};
+    const red=streams.find(s=>state[s].v>=REDLINE);
+    if(red) return{kind:"redline",red};
+    const elev=streams.filter(s=>state[s].v>=CAUTION).map(s=>s.id||s);
+    if(elev.length) return{kind:"elevated",elevated:elev};
+    return{kind:"nominal"};
+  }
+
+  function info(res){
+    if(res.kind==="coupled") return{col:COL.verdict,state:"coupled verdict",
+      active:true,conf:res.conf,contrib:res.members};
+    if(res.kind==="redline") return{col:COL.critical,active:false,conf:.99,contrib:[res.red]};
+    if(res.kind==="elevated") return{col:COL.caution,active:false,conf:0,contrib:res.elevated||[]};
+    return{col:COL.nominal,active:false,conf:0,contrib:[]};
+  }
+
+  let curKey=null;
+  function paintVerdict(inf){
+    if(!tiny&&hubLabel){
+      hubLabel.setAttribute("fill",inf.col);
+      hubBig.textContent=inf.active?"⟡":inf.kind==="redline"?"!":"✓";
+      hubBig.setAttribute("fill",inf.col);
+      if(hubConf) hubConf.textContent=inf.conf?"CONF "+(inf.conf*100).toFixed(0)+"%":"";
+    }
+    hubArc.setAttribute("stroke",inf.col);
+    hubArc.setAttribute("stroke-dasharray",inf.conf?(2*Math.PI*(HUB-6)*inf.conf)+" 9999":"4 600");
+    hubFill.setAttribute("fill",inf.active?"rgba(255,106,61,0.06)":"rgba(67,176,166,0.04)");
+    const mem=new Set(inf.contrib);
+    nodes.forEach(nd=>{
+      nd.halo.setAttribute("opacity",(inf.active&&mem.has(nd.id))?0.9:0);
+      nd.halo.setAttribute("stroke",inf.col);
+    });
+    const key=inf.active?inf.contrib.slice().sort().join(","):"";
+    if(key!==curKey){curKey=key;drawLinks(inf.active?inf.contrib:null,inf.col);}
+  }
+
+  /* tick update */
+  let acc=0;
+  function tick(scenario, dt){
+    acc+=dt;
+    const off=scenarioOff[scenario]||{};
+    streams.forEach(s=>{
+      const target=BASE+(off[s]||0), cur=state[s].v;
+      state[s].v=Math.max(2,Math.min(99,cur+(target-cur)*0.045+(Math.random()-.5)*1.1));
+    });
+    if(acc>=83){
+      acc=0;
+      streams.forEach(s=>{const h=state[s].hist;h.push(state[s].v);if(h.length>HIST)h.shift();});
+    }
+    nodes.forEach(nd=>{
+      const v=state[nd.id].v, c=colVar(v);
+      nd.dot.setAttribute("fill",c);
+      nd.dot.setAttribute("r",v>=CAUTION?8.5:7);
+      if(nd.val) nd.val.textContent=v.toFixed(1);
+      if(nd.spark){nd.spark.setAttribute("stroke",c);nd.spark.setAttribute("points",sparkPts(nd));}
+    });
+    paintVerdict(info(detect()));
+    if(!reduce){
+      dashOff-=0.6;
+      linkLayer.querySelectorAll(".flow").forEach(p=>p.setAttribute("stroke-dashoffset",dashOff));
+    }
+  }
+
+  return {tick};
+}
+
+/* ════════════════════════════════════════════════════
+   INSTANTIATE ALL RINGS
+════════════════════════════════════════════════════ */
+
+// Cover ring — large, bearing scenario, full labels
+const coverSvg = document.getElementById("ring-cover");
+const coverRing = coverSvg ? buildRing(coverSvg, {R:320,HUB:120}) : null;
+
+// Title ring — small, static nominal
+const titleSvg = document.getElementById("ring-title");
+const titleRing = titleSvg ? buildRing(titleSvg, {R:320,HUB:120,tiny:true}) : null;
+
+// Part plates — medium, with labels, different scenarios
+const partRings = {
+  "ring-p1": {ring:null, scenario:"nominal"},
+  "ring-p2": {ring:null, scenario:"nominal"},
+  "ring-p3": {ring:null, scenario:"bearing"},
+  "ring-p4": {ring:null, scenario:"bearing"},
+};
+Object.keys(partRings).forEach(id=>{
+  const svg=document.getElementById(id);
+  if(svg) partRings[id].ring = buildRing(svg,{R:320,HUB:120});
+});
+
+// Chapter bands — tiny, no labels, no sparks
+const chRings = {};
+for(let i=1;i<=21;i++){
+  const id="ring-"+String(i).padStart(2,"0");
+  const svg=document.getElementById(id);
+  if(svg) chRings[id] = buildRing(svg,{R:320,HUB:120,tiny:true});
+}
+
+// Colophon — tiny nominal
+const colSvg = document.getElementById("ring-col");
+const colRing = colSvg ? buildRing(colSvg,{R:320,HUB:120,tiny:true}) : null;
+
+/* ════════════════════════════════════════════════════
+   ANIMATION LOOP
+════════════════════════════════════════════════════ */
+// Each chapter band gets a chapter-number-based scenario
+const chScenarios = {
+  "ring-01":"nominal","ring-02":"nominal","ring-03":"nominal","ring-04":"nominal",
+  "ring-05":"nominal","ring-06":"nominal","ring-07":"bearing","ring-08":"nominal",
+  "ring-09":"nominal","ring-10":"nominal","ring-11":"bearing","ring-12":"feed",
+  "ring-13":"bearing","ring-14":"nominal","ring-15":"nominal","ring-16":"nominal",
+  "ring-17":"bearing","ring-18":"nominal","ring-19":"bearing","ring-20":"bearing",
+  "ring-21":"nominal"
+};
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(50,now-last); last=now;
+  if(coverRing) coverRing.tick("bearing",dt);
+  if(titleRing) titleRing.tick("nominal",dt);
+  if(colRing)   colRing.tick("nominal",dt);
+  Object.keys(partRings).forEach(id=>{
+    const {ring,scenario}=partRings[id];
+    if(ring) ring.tick(scenario,dt);
+  });
+  Object.keys(chRings).forEach(id=>{
+    if(chRings[id]) chRings[id].tick(chScenarios[id]||"nominal",dt);
+  });
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ════════════════════════════════════════════════════
+   RUNNING HEAD + MARGIN RAIL
+════════════════════════════════════════════════════ */
+const rhead   = document.getElementById("rhead");
+const mrail   = document.getElementById("mrail");
+const mtoggle = document.getElementById("mrail-toggle");
+const coverEl = document.querySelector(".cover");
+
+/* --- scroll-spy: chapters --- */
+const railItems = Array.from(mrail.querySelectorAll(".mrail-item"));
+const chapterIds = railItems.map(a => a.getAttribute("href").slice(1));
+const chapterEls = chapterIds.map(id => document.getElementById(id)).filter(Boolean);
+
+/* --- dark-plate detection: plates to fade over --- */
+const darkEls = Array.from(document.querySelectorAll(".plate, .ch-band"));
+
+let rafPending = false;
+function onScroll(){
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(()=>{
+    rafPending = false;
+    const sy = window.scrollY;
+    const vh = window.innerHeight;
+
+    /* running head */
+    const coverThreshold = coverEl ? coverEl.offsetHeight - 80 : 600;
+    if(sy > coverThreshold) rhead.classList.add("lit");
+    else rhead.classList.remove("lit");
+
+    /* scroll-spy: find chapter whose top is within the upper third of viewport */
+    let activeId = null;
+    for(let i = chapterEls.length - 1; i >= 0; i--){
+      const rect = chapterEls[i].getBoundingClientRect();
+      if(rect.top <= vh * 0.38){
+        activeId = chapterIds[i];
+        break;
+      }
+    }
+    railItems.forEach(a => {
+      const isActive = a.getAttribute("href") === "#" + activeId;
+      a.classList.toggle("active", isActive);
+    });
+
+    /* dark-plate fade: is the rail's midpoint overlapping a dark section? */
+    const railMidX = mrail.offsetWidth / 2;
+    const railMidY = sy + vh / 2;
+    let onDark = false;
+    /* only fade when past cover */
+    if(sy > coverThreshold){
+      for(const el of darkEls){
+        const top  = el.offsetTop;
+        const bot  = top + el.offsetHeight;
+        if(railMidY >= top && railMidY <= bot){ onDark = true; break; }
+      }
+    } else {
+      onDark = true; /* cover itself is dark — hide rail */
+    }
+    mrail.classList.toggle("on-dark", onDark);
+  });
+}
+
+onScroll();
+window.addEventListener("scroll", onScroll, {passive:true});
+window.addEventListener("resize", onScroll, {passive:true});
+
+/* --- mobile toggle --- */
+if(mtoggle){
+  mtoggle.addEventListener("click", ()=>{
+    const open = mrail.classList.toggle("open");
+    mtoggle.textContent = open ? "✕" : "≡";
+    mtoggle.setAttribute("aria-expanded", String(open));
+  });
+  /* close on item click (mobile) */
+  railItems.forEach(a => a.addEventListener("click", ()=>{
+    mrail.classList.remove("open");
+    mtoggle.textContent = "≡";
+    mtoggle.setAttribute("aria-expanded","false");
+  }));
+}
+
+})();
+</script>
+</body>
+</html>
