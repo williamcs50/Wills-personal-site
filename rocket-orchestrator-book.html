@@ -561,10 +561,10 @@ td code{font-size:.83em}
                  we perturb this term</div>
 <p>Everything that follows happens <strong>through the model's own couplings</strong>: bearing temperature rises, vibration grows, turbopump speed sags slightly, feed-line pressure and coolant flow ease with it. Five channels have moved. <em>Not one</em> has moved far. <strong>Every one stays comfortably inside its redline.</strong></p>
 <p>But the <em>combination</em> is impossible. In normal operation, at fixed throttle, bearing temperature does not climb <em>while</em> speed droops <em>while</em> vibration grows. It is a broken relationship — precisely what a model of normal, reading the channels together, can see.</p>
-<p class="note"><span class="nl">Limitation</span>A v1 with a single fault type proves the thesis but does not prove generality. Until we test a second, structurally different fault, we will have shown the system detects <em>this</em> fault, not that it detects <em>unfamiliar</em> faults. That distinction matters and is easy to blur.</p>
 <h3>The onset</h3>
 <p>The fault begins partway through the steady hold, where throttle is constant, and grows gradually. Onset <strong>rate</strong> is the parameter that must be tuned into the narrow band: too fast and a channel eventually crosses a redline; too slow and the deviation stays buried in sensor noise when the run ends.</p>
 <p>There is no way to derive the right rate from first principles. It is set by generating candidate faults and checking two things directly: does every channel stay under its redline for the whole run, and does the joint deviation clear the noise floor before shutdown? The rate that satisfies both is the one we keep. <em>(Open item 3.)</em></p>
+<p class="note"><span class="nl">Limitation</span>A v1 with a single fault type proves the thesis but does not prove generality. Until we test a second, structurally different fault, we will have shown the system detects <em>this</em> fault, not that it detects <em>unfamiliar</em> faults. That distinction matters and is easy to blur.</p>
 </div>
 <div class="ch-foot"><a href="#ch-06"><span class="n">Previous</span>← 06 · The Channels</a><a href="#ch-08"><span class="n">Next</span>08 · Many Runs, Kept Apart →</a></div>
 </section>
