@@ -14,8 +14,18 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-    -webkit-font-smoothing:antialiased;padding:28px;}
-  .wrap{max-width:640px;margin:0 auto;}
+    -webkit-font-smoothing:antialiased;}
+  .site-header{background:rgba(22,24,28,.88);backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line);}
+  .site-nav{height:48px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 28px;font-size:14px;}
+  .nav-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);
+    text-decoration:none;letter-spacing:-0.01em;transition:color 160ms ease;}
+  .nav-back:hover{color:var(--ink);}
+  .nav-back .chev{transform:translateY(-1px);}
+  .nav-brand{font-weight:600;color:var(--ink);letter-spacing:-0.01em;}
+  .nav-spacer{width:80px;}
+  .wrap{max-width:640px;margin:0 auto;padding:28px;}
   .head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;}
   .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--accent);font-weight:600;}
   .tag{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);
@@ -112,6 +122,13 @@
 </style>
 </head>
 <body>
+  <header class="site-header" id="siteHeader">
+    <nav class="site-nav">
+      <a class="nav-back" href="index.html"><span class="chev">&lsaquo;</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
   <div class="wrap">
     <div class="head">
       <span class="eyebrow">Pong from Pixels</span>
@@ -497,6 +514,12 @@
   try{ new ResizeObserver(post).observe(document.body); }catch(e){}
   setTimeout(post,300); setTimeout(post,1200);
 })();
+</script>
+<script>
+if (window.self !== window.top) {
+  var sh = document.getElementById('siteHeader');
+  if (sh) sh.style.display = 'none';
+}
 </script>
 </body>
 </html>

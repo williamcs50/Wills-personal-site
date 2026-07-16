@@ -14,10 +14,18 @@
     --nominal:#43b0a6;--caution:#e0a83a;--critical:#ec4a3c;--verdict:#ff6a3d}
   *{box-sizing:border-box}html,body{margin:0;height:100%}
   body{background:radial-gradient(120% 90% at 42% 30%,#0d1822 0%,var(--bg) 64%);
-    color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
-  .wrap{display:grid;height:100vh;grid-template-columns:minmax(0,0.96fr) minmax(0,1fr) 300px;grid-template-areas:"engine ring rail"}
+    color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;
+    display:flex;flex-direction:column}
+  .site-header{flex:none;height:48px;background:rgba(7,11,16,.88);backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--steel-2);z-index:10}
+  .site-nav{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px}
+  .nav-back{display:inline-flex;align-items:center;gap:6px;color:var(--ink);text-decoration:none;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:color .18s}
+  .nav-back:hover{color:var(--ink-bright)}
+  .nav-brand{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .wrap{display:grid;flex:1;min-height:0;grid-template-columns:minmax(0,0.96fr) minmax(0,1fr) 300px;grid-template-areas:"engine ring rail"}
   .stage{position:relative;min-width:0;display:flex;align-items:center;justify-content:center}
-  .stage svg{width:100%;height:100%;max-height:100vh;display:block}
+  .stage svg{width:100%;height:100%;max-height:100%;display:block}
   .s-engine{grid-area:engine;border-right:1px solid var(--steel-2);background:radial-gradient(78% 64% at 50% 40%,#c4ccd6 0%,#7c8693 33%,#2c343e 64%,#0c121a 88%)}
   #engine3d{position:absolute;inset:0;cursor:grab}#engine3d:active{cursor:grabbing}
   #engine3d canvas{display:block}
@@ -85,6 +93,13 @@
 </style>
 </head>
 <body>
+<header class="site-header" id="siteHeader">
+  <nav class="site-nav">
+    <a class="nav-back" href="index.html">&lsaquo; Work</a>
+    <span class="nav-brand">William Opyrchal</span>
+    <span style="width:80px"></span>
+  </nav>
+</header>
 <div class="wrap">
   <div class="stage s-engine">
     <div class="eyebrow">engine&nbsp;//&nbsp;<b>physical state</b></div>
@@ -539,6 +554,10 @@
   window.addEventListener("keydown",e=>{if(tourEl.hidden)return;if(e.key==="Escape")endTour();else if(e.key==="ArrowRight")nextStep();else if(e.key==="ArrowLeft")prevStep();});
   window.addEventListener("resize",()=>{if(!tourEl.hidden)showStep(ti);});
 })();
+if (window.self !== window.top) {
+  var sh = document.getElementById('siteHeader');
+  if (sh) sh.style.display = 'none';
+}
 </script>
 </body>
 </html>

@@ -835,10 +835,11 @@
               behavior is cheap and legible.
             </li>
             <li>
-              <strong>A dynamic command-to-response encoder</strong> for channels whose meaning is
-              tied to recent commands (shaft speed, mixture ratio) &mdash; with the open question of how to
-              add it without breaking the rule that encoders stay pure sensor-summarizers and command
-              context lives in the fusion layer.
+              <strong>Command awareness via cross-attention in the fusion layer</strong> &mdash; throttle
+              history becomes keys/values that channel embeddings attend over, so the model tells
+              &ldquo;sensors moved because of a command&rdquo; from &ldquo;sensors moved with no commanded
+              cause.&rdquo; Encoders stay pure sensor-summarizers; command context enters at the fusion
+              layer.
             </li>
           </ul>
           <h3 style="margin-top: 40px;">The orchestrator</h3>
@@ -891,13 +892,14 @@
             command context is handled in the fusion layer through cross-attention to a short command
             history.
           </p>
-          <h3 style="margin-top: 40px;">Four floor commitments</h3>
+          <h3 style="margin-top: 40px;">Five floor commitments</h3>
           <p>These hold regardless of how the design evolves:</p>
           <ul>
             <li>The orchestrator must catch coupled, sub-threshold faults that per-channel redlines miss <em>on the same data</em> &mdash; that baseline comparison is the result.</li>
             <li>Training, validation, calibration, and test data are generated separately and kept disjoint, and the test split is touched once. The model sees only commands and telemetry at inference time.</li>
             <li>Attention weights indicate which channels were relevant, not what caused the fault &mdash; and the output is presented honestly about that distinction.</li>
             <li>The system advises; it does not act. Deterministic redline protection keeps all authority.</li>
+            <li>The verdict must be legible. An output a human cannot read under pressure will be ignored, and an ignored advisory system is worth nothing.</li>
           </ul>
         </div>
       </div>
@@ -1086,10 +1088,17 @@
             <span class="arrow">&rsaquo;</span>
           </a>
 
+          <a class="link-card" href="rocket-orchestrator-book.html">
+            <p class="link-card-label">Textbook</p>
+            <p class="link-card-title">How It Works</p>
+            <p class="link-card-meta">Chapter-by-chapter engineering walkthrough &mdash; the full technical story</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
           <a class="link-card" href="build-log.html">
             <p class="link-card-label">Build log</p>
             <p class="link-card-title">Live progress tracker</p>
             <p class="link-card-meta">Phase-by-phase status against the 30-day plan, updated as it ships</p>
+            <span class="arrow">&rsaquo;</span>
           </a>
         </div>
       </div>
