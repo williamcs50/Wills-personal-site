@@ -132,7 +132,7 @@
       <div><i style="background:var(--caution)"></i> Elevated · sub-threshold</div>
       <div><i style="background:var(--critical)"></i> Individual redline</div>
       <div><i style="background:var(--verdict)"></i> Coupled verdict</div></div></div>
-    <div class="foot">EACH STREAM STAYS BELOW ITS OWN REDLINE.<br>THE VERDICT LIVES IN THE COMBINATION.</div>
+    <div class="foot">EACH STREAM STAYS BELOW ITS OWN REDLINE.<br>THE VERDICT LIVES IN THE COMBINATION.<br>SCENARIOS ARE SCRIPTED &middot; NO MODEL TRAINED YET</div>
   </aside>
 </div>
 
@@ -517,7 +517,7 @@
      body:"Watch three subsystems climb into the amber. Crucially, not one crosses its own redline. Any single-alarm system sees nothing wrong here."},
     {step:"05 / 07",title:"The combination is the signal",scenario:"bearing",target:{center:"#ring",size:210},
      body:"The orchestrator correlates across streams and raises a verdict — naming the failure mode — purely from the joint pattern. That's the whole idea: the danger lives in the combination, not in any single reading.",
-     more:"v1 is the learned system: trained on what normal looks like, it flags a joint pattern it didn't expect — which is what lets it, in principle, catch coupled faults no one wrote a rule for in advance. (This demo scripts a few illustrative cases to show the idea.)"},
+     more:"This demo scripts a few illustrative cases to show the idea — no model is trained or running here. v1 is designed as the learned system: trained on what normal looks like, it will flag a joint pattern it didn't expect, which is what should let it, in principle, catch coupled faults no one wrote a rule for in advance."},
     {step:"06 / 07",title:"Reasoning points back at the metal",scenario:"bearing",target:{sel:".s-engine"},
      body:"The implicated subsystems light up on the engine itself — so an operator sees not just that something is wrong, but where, in physical context."},
     {step:"07 / 07",title:"Built to grow",scenario:"nominal",target:{sel:".wrap"},

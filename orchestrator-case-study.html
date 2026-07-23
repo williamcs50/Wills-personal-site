@@ -453,6 +453,7 @@
 
     /* ---------- Footer ---------- */
     footer {
+      margin-top: 24px;
       padding: 28px 0 36px;
       background: var(--bg);
       font-family: var(--mono);
@@ -463,7 +464,7 @@
     }
     footer .container {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       flex-wrap: wrap;
       gap: 16px;
     }
@@ -644,13 +645,13 @@
         <div class="hero-meta">
           <span><strong>Stack:</strong> Python &middot; PyTorch &middot; Transformers &middot; Three.js</span>
           <span><strong>Period:</strong> 2026</span>
-          <span><strong>Status:</strong> research prototype &middot; early build</span>
+          <span><strong>Status:</strong> Design complete, implementation beginning. Everything below describes the designed system; no model has been trained yet. Progress is tracked in the <a href="build-log.html">build log</a>.</span>
         </div>
         <div class="hero-demo">
           <div class="demo-frame" id="demoFrame">
             <div class="demo-chrome">
               <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-              <span class="url">orchestrator &mdash; live interface</span>
+              <span class="url">orchestrator &mdash; interface prototype</span>
             </div>
             <div class="demo-stage">
               <div class="demo-scaler"></div>
@@ -670,9 +671,9 @@
                 </svg>
                 <div class="pcontent">
                   <p class="plabel">Interactive demo</p>
-                  <p class="ptitle">The live orchestrator interface</p>
+                  <p class="ptitle">The orchestrator interface prototype</p>
                   <button class="btn-primary" type="button"><span class="pl">&#9654;</span> Launch interactive demo</button>
-                  <p class="phint">3-D engine &middot; live verdicts &middot; guided tour</p>
+                  <p class="phint">3-D engine &middot; scripted scenarios &middot; guided tour</p>
                 </div>
               </div>
             </div>
@@ -809,7 +810,7 @@
         <div class="prose">
           <h2 style="margin-bottom: 28px;">Per-channel encoders, fused by attention.</h2>
           <p>
-            The v1 prototype models eight representative channels, each read by the same uniform
+            The v1 prototype will model eight representative channels, each read by the same uniform
             encoder. Every encoder emits a fixed-length embedding in a shared space, so the fusion
             layer sees a uniform set of tokens and never depends on how any channel was produced. That
             shared interface is what makes the system modular: a uniform encoder today can later be
@@ -818,7 +819,7 @@
           </p>
           <h3 style="margin-top: 40px;">Uniform encoders now, specialized later</h3>
           <p>
-            v1 applies the same encoder to every channel &mdash; the honest baseline. Specializing an
+            v1 will apply the same encoder to every channel &mdash; the honest baseline. Specializing an
             encoder to a channel's physics is only worth it once that uniform baseline shows where
             it falls short, so specialization is a roadmap item, not a v1 assumption. The likely
             first candidates:
@@ -846,7 +847,7 @@
           <p>
             An attention layer takes the per-channel embeddings as tokens, each tagged with a learned
             channel identity, and weighs them against one another to produce the verdict. Confidence
-            is reported as a <strong>calibrated</strong> measure of how far behavior sits from
+            will be reported as a <strong>calibrated</strong> measure of how far behavior sits from
             learned-normal &mdash; most reliable in the regime the model has seen, least on behavior
             unlike its training. An overconfident miss is the dangerous failure here, so the plan is
             post-hoc calibration (likely temperature scaling) after training.
@@ -989,7 +990,7 @@
         <p class="section-eyebrow">Roadmap &amp; open problems</p>
         <div class="prose">
           <h2 style="margin-bottom: 28px;">The first rung of a ladder.</h2>
-          <p>The prototype is built so the next rungs are reachable without rebuilding.</p>
+          <p>The prototype is designed so the next rungs are reachable without rebuilding.</p>
           <ul>
             <li><strong>v1 (this build):</strong> the full pipeline &mdash; per-channel encoders, command-to-response modeling, attention fusion, a verdict, and the demonstration &mdash; on synthetic data, advisory, fusing over a flat set of channels.</li>
             <li><strong>Next:</strong> push more of the detection weight into the learned fusion and harden it against a richer fault library.</li>
@@ -1118,8 +1119,7 @@
 
   <footer>
     <div class="container">
-      <span>&copy; 2026 William Opyrchal</span>
-      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+      <span>&copy; 2026 William Opyrchal &middot; <a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
     </div>
   </footer>
 
