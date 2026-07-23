@@ -461,6 +461,7 @@
     .pager-link.next { text-align: right; }
 
     footer {
+      margin-top: 24px;
       padding: 28px 0 36px;
       background: var(--bg);
       font-family: var(--mono);
@@ -471,7 +472,7 @@
     }
     footer .container {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       flex-wrap: wrap;
       gap: 16px;
     }
@@ -596,6 +597,7 @@
 
       <!-- The actual finding, surfaced as a stat row -->
       <div class="container" style="margin-top: 24px;">
+        <p class="section-eyebrow" style="text-align: center;">As of June 15, 2026 &middot; refreshed periodically, not live</p>
         <div class="finding-stats">
           <div class="finding">
             <p class="finding-source">GFS · Physics</p>
@@ -788,15 +790,17 @@
           <p class="pager-label">‹ Previous case study</p>
           <p class="pager-title">AskMickey</p>
         </a>
-        <span></span>
+        <a class="pager-link next" href="pong.html">
+          <p class="pager-label">Next case study ›</p>
+          <p class="pager-title">Pong from Pixels</p>
+        </a>
       </nav>
     </div>
   </main>
 
   <footer>
     <div class="container">
-      <span>© 2026 William Opyrchal</span>
-      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+      <span>© 2026 William Opyrchal &middot; <a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
     </div>
   </footer>
 

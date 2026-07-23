@@ -452,6 +452,7 @@
 
     /* ---------- Footer ---------- */
     footer {
+      margin-top: 24px;
       padding: 28px 0 36px;
       background: var(--bg);
       font-family: var(--mono);
@@ -462,7 +463,7 @@
     }
     footer .container {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       flex-wrap: wrap;
       gap: 16px;
     }
@@ -841,7 +842,8 @@ anomaly = <span class="num">1</span> <span class="keyword">if</span> rul <= <spa
             <p>
               The cost-minimizing operating point was <code>t* = 0.22</code>, not 0.50. Moving
               there dropped missed failures from 586 to 13 — a 0.4% miss rate — at the deliberate
-              cost of lower precision. Under this cost structure, that trade is correct.
+              cost of lower precision. Under this cost structure, that trade is correct. That's a
+              97.8% reduction in missed failures on the held-out test set.
             </p>
           </div>
           <p>
@@ -937,7 +939,10 @@ anomaly = <span class="num">1</span> <span class="keyword">if</span> rul <= <spa
     <!-- PREV / NEXT -->
     <div class="container">
       <nav class="pager">
-        <span></span>
+        <a class="pager-link prev" href="orchestrator-case-study.html">
+          <p class="pager-label">‹ Previous case study</p>
+          <p class="pager-title">Rocket Engine Health Orchestrator</p>
+        </a>
         <a class="pager-link next" href="askmickey.html">
           <p class="pager-label">Next case study ›</p>
           <p class="pager-title">AskMickey</p>
@@ -948,8 +953,7 @@ anomaly = <span class="num">1</span> <span class="keyword">if</span> rul <= <spa
 
   <footer>
     <div class="container">
-      <span>© 2026 William Opyrchal</span>
-      <span><a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+      <span>© 2026 William Opyrchal &middot; <a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
     </div>
   </footer>
 
