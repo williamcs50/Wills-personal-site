@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Manufacturing Reality Orchestrator — How It Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ───────────────────────────────────────────────── */
+:root{
+  /* light body */
+  --paper:#F2F0E8; --card:#FAF9F4; --ink:#1B1C1F; --body:#38393F; --muted:#6E7077;
+  --rule:#DEDACF; --rule-2:#CAC6B6;
+  --blue:#0F6CDE; --red:#CE3B2A; --teal:#1A8075; --amber:#C07818;
+  /* dark plates (original orchestrator palette) */
+  --bg:#070b10; --bg2:#0b121a; --steel:#243441; --steel2:#16202b;
+  --dim:#566571; --ink-d:#aebcc7; --ink-bright:#dce6ee;
+  --nominal:#43b0a6; --caution:#e0a83a; --critical:#ec4a3c; --verdict:#ff6a3d;
+  --f-disp:"Space Grotesk",system-ui,sans-serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono","IBM Plex Mono",Menlo,monospace;
+  --measure:68ch;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--body);font-family:var(--f-body);font-size:1.05rem;line-height:1.7;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* ── RUNNING HEAD ─────────────────────────────────────────── */
+.rhead{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:baseline;gap:1rem;padding:.6rem clamp(1rem,4vw,2.4rem);transition:background .3s,border-color .3s;border-bottom:1px solid transparent;pointer-events:none}
+.rhead.lit{background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px) saturate(1.3);border-bottom-color:var(--rule);pointer-events:auto}
+.rhead .brand{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.rhead nav{margin-left:auto;display:flex;gap:1.2rem;font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.1em}
+.rhead nav a{color:var(--muted);text-decoration:none}.rhead nav a:hover{color:var(--ink)}
+.rhead-back{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;text-decoration:none;flex-shrink:0;pointer-events:auto;transition:color .18s,background .18s,border-color .18s;
+  color:var(--ink-d);background:rgba(7,11,16,0.55);border:1px solid rgba(255,255,255,0.14);border-radius:3px;padding:4px 10px;}
+.rhead-back:hover{color:var(--ink-bright);border-color:rgba(255,255,255,0.3);}
+.rhead.lit .rhead-back{color:var(--muted);background:transparent;border-color:var(--rule);}
+.rhead.lit .rhead-back:hover{color:var(--ink);border-color:var(--rule-2);}
+
+/* ── DARK PLATE (shared base) ─────────────────────────────── */
+.plate{position:relative;overflow:hidden;
+  background:radial-gradient(120% 90% at 42% 30%,#0d1822 0%,var(--bg) 64%);
+  color:var(--ink-bright)}
+.plate::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(36,52,65,.38) 1px,transparent 1px),linear-gradient(90deg,rgba(36,52,65,.38) 1px,transparent 1px);
+  background-size:34px 34px;z-index:0}
+
+/* ── COVER ────────────────────────────────────────────────── */
+.cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+.cover-inner{position:relative;z-index:2;max-width:1100px;width:100%;margin:0 auto;
+  padding:clamp(5rem,11vh,8rem) clamp(1.4rem,5vw,4rem) clamp(2rem,5vh,3.5rem);
+  display:grid;grid-template-columns:1.1fr 1fr;gap:clamp(2rem,6vw,5rem);align-items:center}
+.cover-text .eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--nominal)}
+.cover-text h1{font-family:var(--f-disp);font-weight:700;font-size:clamp(2.6rem,6.5vw,5rem);line-height:.96;letter-spacing:-.03em;margin:.9rem 0 0}
+.cover-text .sub{font-style:italic;font-size:clamp(1rem,2vw,1.3rem);color:#8fa0ad;margin:1rem 0 0;max-width:44ch;line-height:1.5}
+.cover-text .meta{display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;color:var(--dim);margin-top:1.8rem}
+.cover-text .meta b{color:var(--ink-d);font-weight:500}
+.cover-ring{display:flex;justify-content:center}
+.cover-ring svg{width:100%;max-width:420px;height:auto}
+.cover-scroll{position:relative;z-index:2;font-family:var(--f-mono);font-size:.64rem;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);text-align:center;padding:1.3rem 0 1.6rem}
+@media(max-width:760px){.cover-inner{grid-template-columns:1fr}.cover-ring{display:none}}
+
+/* ── TITLE PAGE ───────────────────────────────────────────── */
+.titlepage{min-height:min(88vh,820px);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s6,5rem) 1.4rem;background:var(--paper)}
+.titlepage .eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+.titlepage h1{font-family:var(--f-disp);font-weight:600;font-size:clamp(2rem,5.5vw,3.6rem);line-height:1;letter-spacing:-.025em;margin:1.2rem 0 0;color:var(--ink);max-width:18ch}
+.titlepage .sub{font-style:italic;font-size:1.15rem;color:var(--muted);margin:1rem 0 0;max-width:42ch;line-height:1.5}
+.ornament{display:flex;align-items:center;justify-content:center;gap:.7rem;margin:2rem 0}
+.ornament::before,.ornament::after{content:"";height:1px;width:clamp(40px,14vw,110px);background:var(--rule-2)}
+.ornament .d{width:5px;height:5px;transform:rotate(45deg);background:var(--red)}
+.titlepage .imprint{font-family:var(--f-mono);font-size:.76rem;letter-spacing:.04em;color:var(--muted);line-height:1.9;margin-top:.8rem}
+.titlepage .imprint b{color:var(--ink);font-weight:500}
+/* mini ring on title page */
+.title-ring{width:clamp(100px,22vw,160px);height:auto;margin:.5rem 0 2rem}
+
+/* ── CONTENTS PAGE ────────────────────────────────────────── */
+.toc-page{max-width:var(--measure);margin:0 auto;padding:clamp(3rem,8vh,5.5rem) 1.4rem;scroll-margin-top:4rem}
+.toc-page .kicker{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.toc-page h2{font-family:var(--f-disp);font-weight:600;font-size:clamp(1.8rem,4vw,2.6rem);letter-spacing:-.02em;margin:.5rem 0 0;color:var(--ink);border-bottom:1px solid var(--rule-2);padding-bottom:1.3rem;margin-bottom:0}
+.toc-page .prow{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--red);margin:2rem 0 .6rem}
+.toc-page ol{list-style:none;margin:0;padding:0}
+.toc-page li{display:flex;align-items:baseline;gap:.5rem;padding:.28rem 0;border-bottom:1px solid transparent}
+.toc-page li:hover{border-bottom-color:var(--rule)}
+.toc-page li .n{font-family:var(--f-mono);font-size:.78rem;color:var(--teal);width:2em;flex:none}
+.toc-page li a{color:var(--ink);text-decoration:none;flex:1}
+.toc-page li a:hover{color:var(--blue)}
+.toc-page li .lead{flex:1;border-bottom:1px dotted var(--rule-2);position:relative;top:-.22em;min-width:1rem}
+.toc-page li .f{font-family:var(--f-mono);font-size:.76rem;color:var(--muted)}
+
+/* ── PART PLATE ───────────────────────────────────────────── */
+.part-plate{min-height:min(92vh,860px);display:flex;align-items:center;margin:0;scroll-margin-top:0}
+.part-plate-inner{position:relative;z-index:2;max-width:1100px;width:100%;margin:0 auto;
+  padding:clamp(3.5rem,9vh,6rem) clamp(1.4rem,5vw,4rem);
+  display:grid;grid-template-columns:1.2fr .9fr;gap:clamp(2rem,6vw,5rem);align-items:center}
+.part-plate .eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--nominal);margin-bottom:.9rem;display:block}
+.part-plate .rule-red{border:none;border-top:1px dashed var(--critical);margin:0 0 1.4rem;max-width:60px;opacity:.7}
+.part-plate .num{font-family:var(--f-disp);font-weight:700;font-size:clamp(5rem,17vw,11rem);line-height:.82;color:transparent;-webkit-text-stroke:1.5px var(--dim);opacity:.5;margin:0 0 .12em;letter-spacing:-.04em;display:block}
+.part-plate h2{font-family:var(--f-disp);font-weight:600;font-size:clamp(2.2rem,5.5vw,3.8rem);line-height:1;letter-spacing:-.025em;margin:0}
+.part-plate .lede{font-style:italic;font-size:clamp(1rem,2vw,1.25rem);color:#8fa0ad;max-width:46ch;line-height:1.55;margin:1.1rem 0 0}
+.part-plate .chlist{list-style:none;margin:2.4rem 0 0;padding:1.4rem 0 0;border-top:1px solid rgba(255,255,255,.09);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.45rem 2rem;max-width:640px}
+.part-plate .chlist a{display:flex;gap:.55rem;font-family:var(--f-mono);font-size:.8rem;color:var(--dim);text-decoration:none;align-items:baseline}
+.part-plate .chlist a:hover{color:var(--ink-bright)}
+.part-plate .chlist a .n{color:var(--nominal)}
+.part-plate .ring-col{display:flex;justify-content:center;align-items:center}
+.part-plate .ring-col svg{width:100%;max-width:400px;height:auto}
+@media(max-width:820px){.part-plate-inner{grid-template-columns:1fr}.part-plate .ring-col{display:none}}
+
+/* ── CHAPTER BAND ─────────────────────────────────────────── */
+.ch-band{position:relative;overflow:hidden;scroll-margin-top:0;
+  background:radial-gradient(100% 100% at 70% 50%,#0d1822 0%,var(--bg) 70%);
+  color:var(--ink-bright)}
+.ch-band::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(36,52,65,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(36,52,65,.35) 1px,transparent 1px);
+  background-size:34px 34px;z-index:0}
+.ch-band-inner{position:relative;z-index:2;max-width:calc(var(--measure) + 7rem);margin:0 auto;
+  padding:clamp(1.8rem,5vh,2.8rem) clamp(1.4rem,4vw,2.6rem);
+  display:flex;align-items:center;gap:clamp(1.2rem,3.5vw,2.4rem)}
+.ch-band .num{font-family:var(--f-disp);font-weight:700;font-size:clamp(3rem,9vw,5.5rem);line-height:.88;color:var(--verdict);letter-spacing:-.04em;flex:none}
+.ch-band .txt{flex:1;min-width:0}
+.ch-band .ch-label{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)}
+.ch-band .ch-label b{color:var(--critical);font-weight:500}
+.ch-band h2{font-family:var(--f-disp);font-weight:600;font-size:clamp(1.6rem,4vw,2.5rem);line-height:1.02;letter-spacing:-.02em;margin:.35rem 0 0}
+.ch-band .thesis{font-size:.95rem;color:var(--dim);max-width:50ch;margin:.55rem 0 0;line-height:1.5;display:none}
+.ch-band .mini-ring{width:clamp(64px,10vw,92px);flex:none}
+.ch-band .mini-ring svg{width:100%;height:auto}
+.ch-seam{height:2px;background:var(--ink)}
+@media(max-width:600px){.ch-band .mini-ring{display:none}}
+
+/* ── BODY ─────────────────────────────────────────────────── */
+.body{max-width:var(--measure);margin:0 auto;padding:clamp(2.2rem,5vh,3.4rem) 1.4rem 1rem}
+.body h3{font-family:var(--f-disp);font-weight:600;color:var(--ink);font-size:1.15rem;letter-spacing:-.01em;margin:2.2rem 0 .7rem}
+.body h4{font-family:var(--f-mono);font-size:.88rem;color:var(--ink);margin:1.8rem 0 .5rem;letter-spacing:.02em}
+.body p{margin:0 0 1.2rem}
+.body strong{color:var(--ink);font-weight:600}
+.body em{font-style:italic}
+/* drop cap removed */
+.body ul,.body ol{margin:0 0 1.2rem;padding-left:1.35rem}
+.body li{margin-bottom:.5rem}
+.body li::marker{color:var(--muted)}
+code{font-family:var(--f-mono);font-size:.86em;background:#EAE7DC;border:1px solid var(--rule);padding:.05em .35em;border-radius:3px;color:#333}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+.xref{font-family:var(--f-mono);font-size:.84em;color:var(--teal);border-bottom:1px dotted var(--teal)}
+.xref:hover{text-decoration:none;background:rgba(26,128,117,.08)}
+.callout{border-left:3px solid var(--blue);padding:.15rem 0 .15rem 1.1rem;margin:0 0 1.2rem;font-size:1.1rem;color:var(--ink)}
+.diagram{font-family:var(--f-mono);font-size:.82rem;line-height:1.52;background:#EAE7DC;border:1px solid var(--rule);border-radius:4px;padding:1.2rem;margin:0 0 1.2rem;overflow-x:auto;white-space:pre;color:var(--body)}
+.diagram .cap{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);display:block;margin-bottom:.6rem;white-space:normal}
+.worked{border:1px solid var(--rule-2);border-radius:4px;padding:1.2rem;margin:0 0 1.2rem;background:var(--card)}
+.worked .label{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);display:block;margin-bottom:.6rem}
+.worked .diagram{background:#E6E3D8;margin-bottom:.6rem}
+.worked p:last-child{margin-bottom:0}
+.note{font-size:.96rem;color:var(--muted);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:.75rem 0;margin:0 0 1.2rem}
+.note .nl{font-family:var(--f-mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-right:.5rem}
+.takeaway{background:var(--card);border:1px solid var(--rule-2);border-left:3px solid var(--teal);border-radius:4px;padding:1.1rem 1.4rem;margin:1.8rem 0}
+.takeaway .label{font-family:var(--f-mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.16em;color:var(--teal);display:block;margin-bottom:.35rem}
+.takeaway p{margin:0;font-size:1.05rem;color:var(--ink)}
+.takeaway strong{color:var(--ink)}
+.ledger{border:1px solid rgba(206,59,42,.45);border-radius:4px;margin:1.4rem 0;overflow:hidden}
+.ledger .head{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.13em;color:var(--red);background:rgba(206,59,42,.07);padding:.55rem 1.2rem;border-bottom:1px solid rgba(206,59,42,.25)}
+.ledger .cols{display:grid;grid-template-columns:1fr 1fr}
+.ledger .col{padding:1rem 1.2rem}
+.ledger .col+.col{border-left:1px solid var(--rule-2)}
+.ledger .col h4{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;margin:0 0 .7rem;color:var(--ink)}
+.ledger .col.claims h4::before{content:"✓ ";color:var(--teal)}
+.ledger .col.limits h4::before{content:"✕ ";color:var(--red)}
+.ledger ul{margin:0;padding-left:1.1rem}
+.ledger li{margin-bottom:.4rem;font-size:.95rem}
+@media(max-width:600px){.ledger .cols{grid-template-columns:1fr}.ledger .col+.col{border-left:none;border-top:1px solid var(--rule-2)}}
+/* table */
+.tablewrap{overflow-x:auto;margin:0 0 1.2rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+caption{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);text-align:left;padding-bottom:.5rem}
+th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--rule-2)}
+tbody tr:last-child td{border-bottom:1px solid var(--rule-2)}
+td code{font-size:.83em}
+/* ch-foot removed */
+.ch-foot{display:none}
+
+/* ── MARGIN RAIL ──────────────────────────────────────────── */
+.mrail{
+  position:fixed;left:0;top:0;bottom:0;z-index:45;
+  width:clamp(120px,14vw,180px);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:0 0 0 clamp(.9rem,2vw,1.6rem);
+  pointer-events:none;
+  transition:opacity .35s;
+}
+/* fade out over dark plates — toggled by JS */
+.mrail.on-dark{opacity:0}
+
+.mrail-inner{display:flex;flex-direction:column;gap:0}
+.mrail-part{
+  font-family:var(--f-mono);font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);opacity:.75;
+  margin:1.1rem 0 .35rem;
+  padding-left:.7rem;
+  pointer-events:auto;
+}
+.mrail-part:first-child{margin-top:0}
+.mrail-item{
+  display:flex;align-items:baseline;gap:.45rem;
+  padding:.18rem 0 .18rem .7rem;
+  border-left:1.5px solid transparent;
+  pointer-events:auto;
+  transition:border-color .2s, opacity .2s;
+  text-decoration:none;
+  opacity:.58;
+}
+.mrail-item .rn{
+  font-family:var(--f-mono);font-size:.62rem;color:var(--body);
+  flex:none;width:1.5em;letter-spacing:.04em;
+  transition:color .2s;
+}
+.mrail-item .rt{
+  font-family:var(--f-mono);font-size:.62rem;color:var(--body);
+  line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:9em;
+  transition:color .2s;
+}
+.mrail-item:hover{opacity:.85;text-decoration:none}
+.mrail-item.active{
+  opacity:1;
+  border-left-color:var(--teal);
+}
+.mrail-item.active .rn{color:var(--teal)}
+.mrail-item.active .rt{color:var(--ink)}
+
+/* mobile: collapse to a small menu button */
+.mrail-toggle{
+  display:none;
+  position:fixed;left:1rem;top:50%;transform:translateY(-50%);z-index:46;
+  width:32px;height:32px;border-radius:50%;
+  background:color-mix(in srgb,var(--paper) 80%,transparent);
+  backdrop-filter:blur(6px);border:1px solid var(--rule-2);
+  cursor:pointer;align-items:center;justify-content:center;
+  font-family:var(--f-mono);font-size:.65rem;color:var(--muted);
+  pointer-events:auto;
+}
+.mrail-toggle:hover{color:var(--ink);border-color:var(--rule)}
+
+@media(max-width:1080px){
+  .mrail{display:none}
+  .mrail-toggle{display:flex}
+  .mrail.open{
+    display:flex;width:200px;
+    background:color-mix(in srgb,var(--paper) 94%,transparent);
+    backdrop-filter:blur(10px);
+    border-right:1px solid var(--rule);
+    padding:1.4rem 0 1.4rem clamp(.9rem,2vw,1.4rem);
+    box-shadow:4px 0 24px rgba(0,0,0,.08);
+    opacity:1!important;
+    pointer-events:auto;
+  }
+  .mrail.open .mrail-toggle-close{display:flex}
+}
+
+/* ── END MATTER ───────────────────────────────────────────── */
+.endmatter{max-width:var(--measure);margin:0 auto;padding:0 1.4rem;border-top:1px solid var(--rule-2)}
+.endmatter h2{font-family:var(--f-disp);font-weight:600;font-size:1.6rem;margin:2.5rem 0 1.2rem;color:var(--ink);scroll-margin-top:4.5rem}
+.openitems{list-style:none;padding:0;margin:0}
+.openitems .group{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:1.6rem 0 .5rem}
+.openitems li{padding:.4rem 0 .4rem 2rem;position:relative;border-bottom:1px solid var(--rule);margin:0}
+.openitems li::before{content:attr(data-n);position:absolute;left:0;font-family:var(--f-mono);font-size:.78rem;color:var(--teal)}
+
+/* ── COLOPHON PLATE ───────────────────────────────────────── */
+.colophon{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:clamp(3.5rem,9vh,6rem) clamp(1.4rem,5vw,4rem);margin-top:5rem}
+.colophon-ring{width:clamp(90px,18vw,140px);margin:0 auto 1.6rem}
+.colophon p{font-family:var(--f-mono);font-size:.76rem;line-height:1.9;letter-spacing:.03em;color:var(--dim);max-width:52ch;margin:.8rem auto 0}
+.colophon p b{color:var(--ink-d);font-weight:500}
+.colophon .em{font-family:var(--f-disp);font-style:italic;font-size:1.15rem;color:#a4b0b8;max-width:44ch;margin:0 auto;line-height:1.5}
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%270%200%2064%2064%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2712%27%20fill%3D%27%230a1119%27/%3E%3Cpolygon%20points%3D%2714.0%2C34.0%2026.0%2C40.0%2038.0%2C34.0%2026.0%2C28.0%27%20fill%3D%27none%27%20stroke%3D%27%23ff8a3a%27%20stroke-width%3D%271.6%27%20stroke-dasharray%3D%273%203%27/%3E%3Ccircle%20cx%3D%2738.0%27%20cy%3D%2730.0%27%20r%3D%2712%27%20fill%3D%27%2305080c%27%20stroke%3D%27%2326333e%27%20stroke-width%3D%272%27/%3E%3Cpath%20d%3D%27M38.0%2C18.0%20A12%2012%200%201%201%2028.8%2C37.6%27%20fill%3D%27none%27%20stroke%3D%27%23ff6a3d%27%20stroke-width%3D%272.4%27%20stroke-linecap%3D%27round%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2718.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%23ff8443%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2725.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%23f0b93a%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2732.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%23e8a02f%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2739.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%233fc9c0%27/%3E%3C/svg%3E">
+</head>
+<body>
+<a style="position:absolute;left:-999px" href="#main" id="skip">Skip to content</a>
+
+<!-- RUNNING HEAD -->
+<header class="rhead" id="rhead" aria-label="Running head">
+  <a href="index.html" class="rhead-back">‹ Work</a>
+  <span class="brand">Manufacturing Reality Orchestrator — How It Works</span>
+  <nav>
+    <a href="#toc">Contents</a>
+    <a href="#part-1">Parts</a>
+    <a href="#glossary">Glossary</a>
+  </nav>
+</header>
+
+<!-- MARGIN RAIL -->
+<nav class="mrail" id="mrail" aria-label="Chapter navigation">
+  <div class="mrail-inner">
+    <span class="mrail-part">Part I — The Problem</span>
+    <a class="mrail-item" href="#ch-01"><span class="rn">01</span><span class="rt">What We Catch</span></a>
+    <a class="mrail-item" href="#ch-02"><span class="rn">02</span><span class="rt">The Idea</span></a>
+    <span class="mrail-part">Part II — The Data</span>
+    <a class="mrail-item" href="#ch-03"><span class="rn">03</span><span class="rt">Why We Simulate</span></a>
+    <a class="mrail-item" href="#ch-04"><span class="rn">04</span><span class="rt">Four Systems</span></a>
+    <a class="mrail-item" href="#ch-05"><span class="rn">05</span><span class="rt">Propagating</span></a>
+    <a class="mrail-item" href="#ch-06"><span class="rn">06</span><span class="rt">Surfaces Elsewhere</span></a>
+    <a class="mrail-item" href="#ch-07"><span class="rn">07</span><span class="rt">The Generator</span></a>
+    <a class="mrail-item" href="#ch-08"><span class="rn">08</span><span class="rt">Kept Apart</span></a>
+    <span class="mrail-part">Part III — The Model</span>
+    <a class="mrail-item" href="#ch-09"><span class="rn">09</span><span class="rt">One Sequence</span></a>
+    <a class="mrail-item" href="#ch-10"><span class="rn">10</span><span class="rt">Read Together</span></a>
+    <a class="mrail-item" href="#ch-11"><span class="rn">11</span><span class="rt">Attention</span></a>
+    <a class="mrail-item" href="#ch-12"><span class="rn">12</span><span class="rt">Forward Flag</span></a>
+    <a class="mrail-item" href="#ch-13"><span class="rn">13</span><span class="rt">Attribution</span></a>
+    <a class="mrail-item" href="#ch-14"><span class="rn">14</span><span class="rt">Corroboration</span></a>
+    <a class="mrail-item" href="#ch-15"><span class="rn">15</span><span class="rt">How It Learns</span></a>
+    <a class="mrail-item" href="#ch-16"><span class="rn">16</span><span class="rt">Sparse Labels</span></a>
+    <span class="mrail-part">Part IV — The Advisory</span>
+    <a class="mrail-item" href="#ch-17"><span class="rn">17</span><span class="rt">Ranked Queue</span></a>
+    <a class="mrail-item" href="#ch-18"><span class="rn">18</span><span class="rt">Calibration</span></a>
+    <a class="mrail-item" href="#ch-19"><span class="rn">19</span><span class="rt">What It Claims</span></a>
+    <a class="mrail-item" href="#ch-20"><span class="rn">20</span><span class="rt">Presenting</span></a>
+    <a class="mrail-item" href="#ch-21"><span class="rn">21</span><span class="rt">Commitments</span></a>
+  </div>
+</nav>
+<button class="mrail-toggle" id="mrail-toggle" aria-label="Open chapter navigation">≡</button>
+
+<main id="main">
+<!-- COVER -->
+<section class="plate cover" aria-label="Cover">
+  <div class="cover-inner">
+    <div class="cover-text">
+      <span class="eyebrow">Engineering case study · living document</span>
+      <h1>The Manufacturing Reality Orchestrator</h1>
+      <p class="sub">How It Works — a ground-up account of a model that reads four planning systems together, catching a disturbance that lives only in the combination and surfaces where its cause isn't.</p>
+      <div class="meta"><span><b>William Opyrchal</b></span><span>2026 · in active development</span><span>Python · PyTorch · Transformers · Three.js</span></div>
+    </div>
+    <div class="cover-ring"><svg id="ring-cover" viewBox="0 0 1000 1000" aria-label="Advisory ring showing the SN-9 cross-system signature"></svg></div>
+  </div>
+  <div class="cover-scroll">How It Works ↓</div>
+</section>
+
+<!-- TITLE PAGE -->
+<section class="titlepage">
+  <span class="eyebrow">An engineering case study</span>
+  <h1>The Manufacturing Reality Orchestrator</h1>
+  <p class="sub">How It Works — a ground-up explanation, assuming no prior knowledge.</p>
+  <div class="ornament"><span class="d"></span></div>
+  <svg class="title-ring" id="ring-title" viewBox="0 0 1000 1000" aria-hidden="true"></svg>
+  <p class="imprint"><b>William Opyrchal</b><br>2026 · in active development<br>A living document, revised as the project develops.</p>
+</section>
+
+<nav class="toc-page" id="toc" aria-label="Table of contents">
+  <span class="kicker">Contents</span>
+  <h2>How It Works</h2>
+  <p class="prow">Part I · The Problem</p>
+  <ol><li><span class="n">01</span><a href="#ch-01">What We Are Trying to Catch</a><span class="lead"></span><span class="f">01</span></li>
+  <li><span class="n">02</span><a href="#ch-02">The Idea</a><span class="lead"></span><span class="f">02</span></li></ol>
+  <p class="prow">Part II · The Scenario &amp; Data</p>
+  <ol><li><span class="n">03</span><a href="#ch-03">Why We Simulate</a><span class="lead"></span><span class="f">03</span></li>
+  <li><span class="n">04</span><a href="#ch-04">The Four Systems</a><span class="lead"></span><span class="f">04</span></li>
+  <li><span class="n">05</span><a href="#ch-05">One Disturbance, Propagating</a><span class="lead"></span><span class="f">05</span></li>
+  <li><span class="n">06</span><a href="#ch-06">Surfacing Where the Cause Isn't</a><span class="lead"></span><span class="f">06</span></li>
+  <li><span class="n">07</span><a href="#ch-07">The Generator</a><span class="lead"></span><span class="f">07</span></li>
+  <li><span class="n">08</span><a href="#ch-08">Stages, Kept Apart</a><span class="lead"></span><span class="f">08</span></li></ol>
+  <p class="prow">Part III · The Model</p>
+  <ol><li><span class="n">09</span><a href="#ch-09">Reading the Systems as One Sequence</a><span class="lead"></span><span class="f">09</span></li>
+  <li><span class="n">10</span><a href="#ch-10">Why They Must Be Read Together</a><span class="lead"></span><span class="f">10</span></li>
+  <li><span class="n">11</span><a href="#ch-11">Attention</a><span class="lead"></span><span class="f">11</span></li>
+  <li><span class="n">12</span><a href="#ch-12">The Forward Prediction</a><span class="lead"></span><span class="f">12</span></li>
+  <li><span class="n">13</span><a href="#ch-13">The Backward Explanation</a><span class="lead"></span><span class="f">13</span></li>
+  <li><span class="n">14</span><a href="#ch-14">Corroboration</a><span class="lead"></span><span class="f">14</span></li>
+  <li><span class="n">15</span><a href="#ch-15">How the Model Learns</a><span class="lead"></span><span class="f">15</span></li>
+  <li><span class="n">16</span><a href="#ch-16">Precision on Sparse Labels</a><span class="lead"></span><span class="f">16</span></li></ol>
+  <p class="prow">Part IV · The Advisory</p>
+  <ol><li><span class="n">17</span><a href="#ch-17">From Prediction to a Ranked Queue</a><span class="lead"></span><span class="f">17</span></li>
+  <li><span class="n">18</span><a href="#ch-18">Calibration</a><span class="lead"></span><span class="f">18</span></li>
+  <li><span class="n">19</span><a href="#ch-19">What the Output Claims</a><span class="lead"></span><span class="f">19</span></li>
+  <li><span class="n">20</span><a href="#ch-20">Presenting the Advisory</a><span class="lead"></span><span class="f">20</span></li>
+  <li><span class="n">21</span><a href="#ch-21">The Commitments</a><span class="lead"></span><span class="f">21</span></li></ol>
+  <p class="prow">End Matter</p>
+  <ol><li><span class="n">—</span><a href="#glossary">Glossary</a><span class="lead"></span><span class="f">·</span></li>
+  <li><span class="n">—</span><a href="#open-items">Open Items</a><span class="lead"></span><span class="f">·</span></li></ol>
+</nav>
+
+<!-- ══ PART I ══ -->
+<section class="plate part-plate" id="part-1">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part I</span>
+      <hr class="rule-red">
+      <span class="num">I</span>
+      <h2>The Problem</h2>
+      <p class="lede">A per-system dashboard cannot see a disturbance that lives only in the combination of systems, moving between them over time. Catching that class of disturbance is the entire purpose.</p>
+      <ul class="chlist">
+        <li><a href="#ch-01"><span class="n">01</span>What We Are Trying to Catch</a></li>
+        <li><a href="#ch-02"><span class="n">02</span>The Idea</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p1" viewBox="0 0 1000 1000" aria-label="Advisory ring"></svg></div>
+  </div>
+</section>
+
+<!-- ── Ch 01 ── -->
+<section id="ch-01">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">01</div>
+  <div class="txt"><span class="ch-label">Part I · <b>Chapter 01</b></span><h2>What We Are Trying to Catch</h2></div>
+  <div class="mini-ring"><svg id="ring-01" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>A rocket factory runs on a stack of planning systems. A <strong>PLM</strong> system holds the evolving design. An <strong>ERP/MRP</strong> holds the plan — what is ordered, what is due, what the lead times are. An <strong>MES</strong> holds what the floor is actually doing. A <strong>procedures</strong> system holds which qualifications and requalifications run when. Each is a system of record: a database of what one part of the world is believed to be.</p>
+<p>The standard way to watch such a stack is one screen at a time. Each system has its own dashboard, internally consistent with its own data, each value inside its own acceptable range. This is simple, fast, and it catches any problem severe enough to push one number out of bounds on one screen.</p>
+<p>It has one structural blind spot. Some problems never push a single system's number out of range. They appear as a small, coordinated drift across <em>several</em> systems — engineering change orders running a little hot, a supplier's deliveries scattering a little wider, a machine's cycle time creeping up a few percent — each comfortably inside its own normal band, but <em>together</em>, and <em>in sequence</em>, forming a pattern that does not belong. This is a <strong>cross-system, sub-threshold disturbance</strong>: <em>cross-system</em> because the evidence is spread across systems that don't talk to each other, <em>sub-threshold</em> because nothing crosses a limit.</p>
+<p>A per-system dashboard cannot catch this, and not by accident: it never compares systems to each other over time, so a disturbance that exists only <em>in the combination</em> is invisible to it by construction. Worse than a redline's blind spot, because there are four systems and the drift <em>moves</em> between them.</p>
+<p class="callout">The failure is only legible when the four systems are read together, in sequence — which is exactly what no single planning screen is built to do.</p>
+<p>Catching that class of disturbance — early, while every dashboard still reads green — is the entire purpose of this project. Everything that follows is the construction of a system that does it: first the plant and the data it learns from (<a class="xref" href="#part-2">Part II</a>), then the model that learns (<a class="xref" href="#part-3">Part III</a>), then how its output is made honest and usable (<a class="xref" href="#part-4">Part IV</a>).</p>
+
+</div>
+<div class="ch-foot"><span></span><a href="#ch-02"><span class="n">Next</span>02 · The Idea →</a></div>
+</section>
+
+<!-- ── Ch 02 ── -->
+<section id="ch-02">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">02</div>
+  <div class="txt"><span class="ch-label">Part I · <b>Chapter 02</b></span><h2>The Idea</h2></div>
+  <div class="mini-ring"><svg id="ring-02" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The idea is to add one advisory layer over the existing stack. It changes nothing the planners rely on and has no authority over the schedule. It reads the four systems <em>together, over time</em>, and does two things from a <strong>single trained model</strong>.</p>
+<p>First, a <strong>forward</strong> output: a learned early flag that a stage is developing the shape of stages that later slipped — a schedule slip predicted from the factory's own internal, cross-system operating signals, before it surfaces on any dashboard (<a class="xref" href="#ch-12">Ch. 12</a>).</p>
+<p>Second, a <strong>backward</strong> output: an explanation of what that prediction rests on, obtained by input attribution over the same model — the upstream signature that appears to drive the flag, offered as a candidate for a human to investigate (<a class="xref" href="#ch-13">Ch. 13</a>).</p>
+<p class="callout">Two outputs, one model — one looking forward, one looking backward — and they come from the same place.</p>
+<p>Two design commitments run through everything after this. The system is <strong>advisory</strong>: it surfaces hypotheses a human would not otherwise see; it does not make the call (<a class="xref" href="#ch-19">Ch. 19</a>). And its honesty is <strong>structural</strong>: which work is learned and which is deterministic bookkeeping, whether a signal is importance or cause — these distinctions are kept visible rather than blurred into one undifferentiated "AI" (<a class="xref" href="#ch-14">Ch. 14</a>, <a class="xref" href="#ch-19">Ch. 19</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-01"><span class="n">Previous</span>← 01 · What We Are Trying to Catch</a><a href="#ch-03"><span class="n">Next</span>03 · Why We Simulate →</a></div>
+</section>
+
+
+<!-- ══ PART II ══ -->
+<section class="plate part-plate" id="part-2">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part II</span>
+      <hr class="rule-red">
+      <span class="num">II</span>
+      <h2>The Scenario &amp; Data</h2>
+      <p class="lede">To build the detector we need normal operation across four systems and the exact cross-system disturbances we mean to catch, labeled. We have neither — so we simulate, injecting one root cause and letting it propagate.</p>
+      <ul class="chlist">
+        <li><a href="#ch-03"><span class="n">03</span>Why We Simulate</a></li>
+        <li><a href="#ch-04"><span class="n">04</span>The Four Systems</a></li>
+        <li><a href="#ch-05"><span class="n">05</span>One Disturbance, Propagating</a></li>
+        <li><a href="#ch-06"><span class="n">06</span>Surfacing Where the Cause Isn't</a></li>
+        <li><a href="#ch-07"><span class="n">07</span>The Generator</a></li>
+        <li><a href="#ch-08"><span class="n">08</span>Stages, Kept Apart</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p2" viewBox="0 0 1000 1000" aria-label="Advisory ring"></svg></div>
+  </div>
+</section>
+<!-- ── Ch 03 ── -->
+<section id="ch-03">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">03</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 03</b></span><h2>Why We Simulate</h2></div>
+  <div class="mini-ring"><svg id="ring-03" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>Two things are needed to build the detector: examples of normal operation across the four systems, and the exact cross-system disturbances we mean to catch, each labeled by what actually happened. Real production data of this kind, cleanly labeled, is not available to a prototype — so we simulate.</p>
+<p>The <strong>generator</strong> is a small model of the four systems' streams. A disturbance is injected at the <em>root</em>, and the propagation and its downstream surfacing emerge through the model's own couplings rather than being drawn in by hand (<a class="xref" href="#ch-07">Ch. 07</a>).</p>
+<p class="note"><span class="nl">Note</span>The generator is a <strong>process model written as code</strong> — relationships between the four systems, run forward to produce plausible records. It is <em>not</em> a language model inventing numbers. The couplings between systems are consequences of the model's structure, not decoration added by hand — which is the whole reason a disturbance injected at one point can surface somewhere else on its own.</p>
+<p>The seam is kept clean: synthetic streams and a real feed would present the model the same interface, so the concept can be shown honestly without claiming a trained result it does not have. The honest limits of leaning on synthetic data — that the model might learn a quirk of the generator rather than a real pattern — are stated plainly later (<a class="xref" href="#ch-15">Ch. 15</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-02"><span class="n">Previous</span>← 02 · The Idea</a><a href="#ch-04"><span class="n">Next</span>04 · The Four Systems →</a></div>
+</section>
+
+<!-- ── Ch 04 ── -->
+<section id="ch-04">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">04</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 04</b></span><h2>The Four Systems</h2></div>
+  <div class="mini-ring"><svg id="ring-04" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The stack modeled here mirrors a real orbital-manufacturing environment. Four systems, read together as one sequence, with two different <em>kinds</em> of signal in them.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>System</th><th>Holds</th><th>Signal kind</th></tr></thead>
+<tbody>
+<tr><td><strong>Teamcenter</strong> (PLM)</td><td>the evolving design — engineering change orders</td><td>sparse, discrete events</td></tr>
+<tr><td><strong>Dynamics 365</strong> (ERP/MRP)</td><td>the plan — orders, due dates, receipts, lead times</td><td>dense stream</td></tr>
+<tr><td><strong>Opcenter</strong> (MES)</td><td>the floor — dwell, cycle time, work-in-process</td><td>dense stream</td></tr>
+<tr><td><strong>Epsilon3</strong> (procedures)</td><td>qualifications and requalifications, and when they run</td><td>sparse, discrete events</td></tr>
+</tbody></table></div>
+<p>The <strong>dense</strong> streams (D365, Opcenter) produce a value on a regular cadence — the predictive substrate. The <strong>sparse</strong> events (Teamcenter, Epsilon3) happen occasionally and irregularly — an ECO release, a requalification. They are not four of a kind, and the system does not treat them identically: the dense streams <em>detect</em>, the sparse events <em>corroborate</em> (<a class="xref" href="#ch-14">Ch. 14</a>).</p>
+<p class="callout">The scheduling context — which procedures run when — lives in Epsilon3, a system the MRP never reads as a constraint.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-03"><span class="n">Previous</span>← 03 · Why We Simulate</a><a href="#ch-05"><span class="n">Next</span>05 · One Disturbance, Propagating →</a></div>
+</section>
+
+<!-- ── Ch 05 ── -->
+<section id="ch-05">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">05</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 05</b></span><h2>One Disturbance, Propagating</h2></div>
+  <div class="mini-ring"><svg id="ring-05" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>One illustrative scenario runs through the whole book, so the abstract "cross-system disturbance" has a concrete shape. A flight-critical forging — an isogrid barrel section for a second stage — is early in its life: new design, a supplier still maturing the process, low unit count. Watch one disturbance move through the four systems, in order.</p>
+<div class="diagram">ECO churn  →  supplier variance  →  mill dwell  →  downstream WIP
+(Teamcenter)     (Dynamics 365)      (Opcenter)      (surfaces elsewhere)</div>
+<p><strong>It starts in engineering.</strong> The barrel's design is still being resolved, so change orders on this part run above baseline. Teamcenter holds this as elevated ECO churn.</p>
+<p><strong>It reaches the supplier.</strong> Absorbing those changes, the supplier becomes less <em>predictable</em> — not yet late, but their delivery dates begin to scatter. Dynamics 365 records each receipt, and each one is within the acceptable window, so nothing flags.</p>
+<p><strong>It reaches the floor.</strong> At isogrid milling, the operator re-fixtures repeatedly to handle the incoming part variants, and cycle time drifts up a few percent. Opcenter holds this as creeping dwell.</p>
+<p class="callout">Every one of these signals is individually unremarkable. None crosses a threshold. Every dashboard stays green.</p>
+<p>That is the point. The disturbance is one thing in the physical world, scattered across four partial representations that don't talk to each other. It is only legible as a single thing when the four are read together and in sequence. And it is not done — it has not yet surfaced where it will actually be noticed (<a class="xref" href="#ch-06">Ch. 06</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-04"><span class="n">Previous</span>← 04 · The Four Systems</a><a href="#ch-06"><span class="n">Next</span>06 · Surfacing Where the Cause Isn't →</a></div>
+</section>
+
+<!-- ── Ch 06 ── -->
+<section id="ch-06">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">06</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 06</b></span><h2>Surfacing Where the Cause Isn't</h2></div>
+  <div class="mini-ring"><svg id="ring-06" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The disturbance surfaces somewhere else entirely. The cell fed by milling starves during the delays. To stay productive, it backfills with other committed jobs — and work-in-process quietly accumulates at a station that, looked at on its own, appears completely healthy.</p>
+<p class="callout">Cost and disorder show up <em>where the cause isn't.</em></p>
+<p>This is the sharpest form of the problem, and the most valuable thing the system can surface. The slipping date and the cost anomaly are seen by different people, in different units — one owned by the program, one owned by finance — and nobody connects them. They are the <em>same root cause</em>. Collapsing two separately-investigated problems into one is the "untangle" the whole idea rests on (<a class="xref" href="#ch-13">Ch. 13</a>).</p>
+<p class="note"><span class="nl">Why this is hard</span>The affected cell is not observably broken. Its own dashboard reads nominal. Nothing measured there is wrong; the claim that it is affected is an <em>inference</em> from the cross-system signature, not a reading off a gauge. Any honest presentation has to show it as inferred, not observed (<a class="xref" href="#ch-20">Ch. 20</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-05"><span class="n">Previous</span>← 05 · One Disturbance, Propagating</a><a href="#ch-07"><span class="n">Next</span>07 · The Generator →</a></div>
+</section>
+
+<!-- ── Ch 07 ── -->
+<section id="ch-07">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">07</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 07</b></span><h2>The Generator</h2></div>
+  <div class="mini-ring"><svg id="ring-07" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>To learn from this class of disturbance, we have to be able to produce it — many times, with variation, each time knowing the truth. The generator models the four systems' streams and the couplings between them, then injects one disturbance at the root (the ECO churn) and lets it propagate.</p>
+<div class="diagram">inject at root (ECO churn)
+   → supplier-variance coupling
+      → mill-dwell coupling
+         → downstream-WIP coupling
+propagation + surfacing = consequences of the couplings, not scripted beats</div>
+<p>This matters for honesty. The money-shot — cost surfacing at a healthy-looking cell — is not drawn in stage by stage. It emerges because the generator's structure carries one injected cause forward. Perturb the root; the shape appears downstream on its own.</p>
+<p class="note"><span class="nl">The clean seam</span>Synthetic streams and a real feed present the model the same interface. Nothing in the model "knows" the streams are simulated. That is what lets the concept be demonstrated honestly on a synthetic scenario without claiming a trained result on real data (<a class="xref" href="#ch-15">Ch. 15</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-06"><span class="n">Previous</span>← 06 · Surfacing Where the Cause Isn't</a><a href="#ch-08"><span class="n">Next</span>08 · Stages, Kept Apart →</a></div>
+</section>
+
+<!-- ── Ch 08 ── -->
+<section id="ch-08">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">08</div>
+  <div class="txt"><span class="ch-label">Part II · <b>Chapter 08</b></span><h2>Stages, Kept Apart</h2></div>
+  <div class="mini-ring"><svg id="ring-08" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The unit the model learns from is a <strong>stage</strong>: one part moving through the line, represented as its full multivariate event history across the four systems. Each stage carries a <strong>label</strong> recording what actually happened — did it slip, by how much, and what downstream cost and WIP anomalies came with it.</p>
+<p>The label is never shown to the model. It exists only to grade the model's answers. At inference, the model sees only the four systems' signals — the outcome stays out.</p>
+<p>Stages are partitioned into non-overlapping <strong>splits</strong> — training, validation, calibration, and test — generated separately and kept apart, so that no stage used to fit the model is ever used to judge it. The calibration split earns its own keep later, making the confidence honest (<a class="xref" href="#ch-18">Ch. 18</a>); the test split is touched once.</p>
+<p class="callout">Everything the model knows about a disturbance lives inside the <em>shape</em> of these four ordinary system streams. Nothing is stored as a hint.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-07"><span class="n">Previous</span>← 07 · The Generator</a><a href="#ch-09"><span class="n">Next</span>09 · Reading the Systems as One Sequence →</a></div>
+</section>
+
+
+<!-- ══ PART III ══ -->
+<section class="plate part-plate" id="part-3">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part III</span>
+      <hr class="rule-red">
+      <span class="num">III</span>
+      <h2>The Model</h2>
+      <p class="lede">A single disturbance's meaning is relational, not self-contained. The model must read the four systems together as one sequence — and from that one model come two outputs, forward and backward.</p>
+      <ul class="chlist">
+        <li><a href="#ch-09"><span class="n">09</span>Reading the Systems as One Sequence</a></li>
+        <li><a href="#ch-10"><span class="n">10</span>Why They Must Be Read Together</a></li>
+        <li><a href="#ch-11"><span class="n">11</span>Attention</a></li>
+        <li><a href="#ch-12"><span class="n">12</span>The Forward Prediction</a></li>
+        <li><a href="#ch-13"><span class="n">13</span>The Backward Explanation</a></li>
+        <li><a href="#ch-14"><span class="n">14</span>Corroboration</a></li>
+        <li><a href="#ch-15"><span class="n">15</span>How the Model Learns</a></li>
+        <li><a href="#ch-16"><span class="n">16</span>Precision on Sparse Labels</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p3" viewBox="0 0 1000 1000" aria-label="Advisory ring"></svg></div>
+  </div>
+</section>
+<!-- ── Ch 09 ── -->
+<section id="ch-09">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">09</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 09</b></span><h2>Reading the Systems as One Sequence</h2></div>
+  <div class="mini-ring"><svg id="ring-09" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The model reads the four systems as a single <strong>multivariate sequence</strong> per stage. "Multivariate" means each step in time is not one number but a vector of many measurements. "Sequence" means the order and timing carry meaning — the disturbance is defined by churn <em>now</em> relating to variance <em>weeks later</em> relating to dwell <em>after that</em>.</p>
+<p>The hard part is that the four systems speak in two registers. The dense operational streams (receipt timing and variance from D365; dwell, cycle time and WIP from Opcenter) arrive on a regular cadence. The sparse discrete events (ECO releases from Teamcenter; procedure and requalification events from Epsilon3) arrive irregularly — a spike on a timeline, not a stream.</p>
+<div class="diagram">dense streams  ──┬────  time-aligned  ────  one sequence  →  [ model ]
+sparse events  ──┘   (events as timestamped tokens)</div>
+<p>Getting regular streams and irregular events into one aligned sequence a single model can read — dense interleaved with sparse — is a real modeling problem, and it is where the two kinds of system are first brought together rather than watched apart.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-08"><span class="n">Previous</span>← 08 · Stages, Kept Apart</a><a href="#ch-10"><span class="n">Next</span>10 · Why They Must Be Read Together →</a></div>
+</section>
+
+<!-- ── Ch 10 ── -->
+<section id="ch-10">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">10</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 10</b></span><h2>Why They Must Be Read Together</h2></div>
+  <div class="mini-ring"><svg id="ring-10" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>A single system's reading is not meaningful in isolation. Supplier delivery scattering a little is unremarkable on its own — suppliers vary. Cycle time creeping up a few percent is unremarkable on its own — floors drift. Elevated change-order churn is unremarkable on its own — new designs churn.</p>
+<p>The signal is the <em>conjunction</em>, in order: churn up, then variance widening, then dwell creeping, then WIP surfacing downstream — the same disturbance seen four times, from four partial vantage points, none alarming alone.</p>
+<p class="callout">The disturbance's meaning is <strong>relational</strong>, not self-contained. It exists only in how the systems move together.</p>
+<p>This is precisely why a per-system dashboard cannot catch it (<a class="xref" href="#ch-01">Ch. 01</a>) and why the systems must be read jointly. The mechanism that reads them jointly — letting each system's signal be placed in the context of the others — is <strong>attention</strong> (<a class="xref" href="#ch-11">Ch. 11</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-09"><span class="n">Previous</span>← 09 · Reading the Systems as One Sequence</a><a href="#ch-11"><span class="n">Next</span>11 · Attention →</a></div>
+</section>
+
+<!-- ── Ch 11 ── -->
+<section id="ch-11">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">11</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 11</b></span><h2>Attention</h2></div>
+  <div class="mini-ring"><svg id="ring-11" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>Attention is the operation that lets each element of a sequence weigh its relationship to every other element — near or far, and by an amount the model <em>learns</em> rather than fixes in advance. For this problem it is exactly the right primitive: the relevant relationships are between systems and across weeks, and which ones matter is not known ahead of time.</p>
+<p>Applied here, attention lets the model ask, for any moment, <em>how much should the milling signal be read in light of the supplier signal three weeks earlier, and the ECO churn before that?</em> — and answer with a weight computed from the data itself.</p>
+<p class="note"><span class="nl">Naming</span><em>Attention</em> is the operation; a <strong>transformer</strong> is the architecture built around it. The model here is a transformer over the four systems' interleaved sequence. Nobody derived attention from first principles — it satisfies what this problem needs and, built up and trained, it works across enormously varied sequence problems. Trust the scoreboard, not the elegance of the story.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-10"><span class="n">Previous</span>← 10 · Why They Must Be Read Together</a><a href="#ch-12"><span class="n">Next</span>12 · The Forward Prediction →</a></div>
+</section>
+
+<!-- ── Ch 12 ── -->
+<section id="ch-12">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">12</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 12</b></span><h2>The Forward Prediction</h2></div>
+  <div class="mini-ring"><svg id="ring-12" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The forward output is the learned part. Trained on the history of past stages — each labeled by what actually happened to it — the transformer learns that a particular <strong>joint early signature</strong> precedes a schedule slip: churn up, variance widening, dwell creeping, all at once, none alarming alone. The output is an early flag: <em>this stage is developing the shape of stages that later slipped.</em></p>
+<p class="callout">It reads as a probability of a future slip — not a fact, and not an alarm that a limit was crossed.</p>
+<p>It is worth being precise about what this is <em>not</em>. It is not demand forecasting — the mature, crowded thing most people mean by "AI in MRP." It forecasts a <em>schedule slip</em> from a factory's own internal, cross-system operating signals. That is a much less trodden claim, and it is the one this project is actually about.</p>
+<p>The prediction's honest weak point is stated where it belongs: earliness is only worth something if false positives are rare, and rarity is hardest to achieve on exactly the data-poor line where this matters most (<a class="xref" href="#ch-16">Ch. 16</a>).</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-11"><span class="n">Previous</span>← 11 · Attention</a><a href="#ch-13"><span class="n">Next</span>13 · The Backward Explanation →</a></div>
+</section>
+
+<!-- ── Ch 13 ── -->
+<section id="ch-13">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">13</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 13</b></span><h2>The Backward Explanation</h2></div>
+  <div class="mini-ring"><svg id="ring-13" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The backward output is a by-product of the same model. Ask the model <em>what its slip prediction rests on</em> — using standard <strong>input attribution</strong>, the well-understood family of methods (SHAP and gradient-based attribution). The attribution exposes that the prediction is driven by the ECO-churn → supplier-variance → mill-dwell chain. No second model, no new machinery: the explanation falls out of the prediction already trained.</p>
+<p class="note"><span class="nl">The right, honest name</span>This is <strong>attribution</strong> — which inputs drove a given output — not "mechanistic interpretability," which reverse-engineers a network's internal circuits and is a different, frontier thing. And it is not raw attention weights, a known-unreliable explainer. Attribution is mature and deployed; using the accurate name is stronger than reaching for a newer-sounding one.</p>
+<p>Here the two outputs meet. The same upstream signature driving the <em>slip</em> prediction is also the likely driver of the <em>cost</em> problem downstream — the mystery WIP at the healthy-looking cell (<a class="xref" href="#ch-06">Ch. 06</a>). The model surfaces that the slipping date and the cost anomaly are one root cause. That is the untangle.</p>
+<p class="callout">Attribution reports <strong>importance, not causation.</strong> It is a candidate for a human to investigate — the honest hard line drawn in <a class="xref" href="#ch-19">Ch. 19</a>.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-12"><span class="n">Previous</span>← 12 · The Forward Prediction</a><a href="#ch-14"><span class="n">Next</span>14 · Corroboration →</a></div>
+</section>
+
+<!-- ── Ch 14 ── -->
+<section id="ch-14">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">14</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 14</b></span><h2>Corroboration</h2></div>
+  <div class="mini-ring"><svg id="ring-14" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>One move makes the whole thing materially more deployable, and it is where the two sparse systems earn their place. A flag riding only on dense-stream drift — variance and dwell creeping — is weaker than one that <em>also</em> lines up with a discrete event: an actual ECO release in Teamcenter, an actual requalification in Epsilon3.</p>
+<div class="diagram">dense streams  →  detect  (the learned signature)
+sparse events  →  confirm (a real ECO / requal in the same window)
+────────────────────────────────────────
+only corroborated flags reach the queue</div>
+<p>Requiring that corroboration before a flag reaches the queue raises the hit rate without retraining anything. It is <strong>deterministic bookkeeping</strong> layered on the learned prediction.</p>
+<p class="note"><span class="nl">Which work is learned</span>This is the honest cut the project is organized around: the transformer does the learned prediction and its attribution; deterministic logic does the corroboration and the cost alignment. Forcing an "AI" label onto the bookkeeping would be overclaiming. Keeping the line visible is what makes the whole thing credible.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-13"><span class="n">Previous</span>← 13 · The Backward Explanation</a><a href="#ch-15"><span class="n">Next</span>15 · How the Model Learns →</a></div>
+</section>
+
+<!-- ── Ch 15 ── -->
+<section id="ch-15">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">15</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 15</b></span><h2>How the Model Learns</h2></div>
+  <div class="mini-ring"><svg id="ring-15" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The churn that makes this problem painful is the same churn that makes it learnable. A stable line produces almost no decoupling events — nothing to learn from. A line where design and process are constantly moving generates drift as its normal condition, which means it also generates the labeled examples the model trains on.</p>
+<p>Training adjusts the model's parameters to reduce error against the labels, one small step at a time, over many passes — and stops when held-out error stops improving and begins to creep upward. That moment is where learning-the-pattern turns into memorizing-the-sample.</p>
+<p class="note"><span class="nl">The deepest risk</span>Because the demonstrable version runs on synthetic streams (<a class="xref" href="#ch-07">Ch. 07</a>), the model could latch onto a quirk of the generator — a correlation real in the simulation but incidental to the world. It would look like signal in training and evaporate on a real feed. Guarding against that — disjoint splits, a test set touched once, eventually a second structurally different disturbance — is the discipline the whole result depends on.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-14"><span class="n">Previous</span>← 14 · Corroboration</a><a href="#ch-16"><span class="n">Next</span>16 · Precision on Sparse Labels →</a></div>
+</section>
+
+<!-- ── Ch 16 ── -->
+<section id="ch-16">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">16</div>
+  <div class="txt"><span class="ch-label">Part III · <b>Chapter 16</b></span><h2>Precision on Sparse Labels</h2></div>
+  <div class="mini-ring"><svg id="ring-16" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>Here is the honest gating risk, stated plainly: low unit counts mean few labeled slips. A from-scratch model trained only on a handful of slipped stages is unlikely to work.</p>
+<p>A realistic build pretrains on the abundant operational sequence data the systems already emit — the dense streams pour out constantly, labeled or not — and fine-tunes on the scarce labeled outcomes. The abundant data teaches the model what the plant's streams normally look like; the scarce labels teach it which shapes precede trouble.</p>
+<p class="callout">Precision on a data-poor line is the genuine engineering challenge here, and any version of this that hides that is selling something.</p>
+<p>And earliness is only worth something if false positives are rare. A model that flags a slip every other week is worse than useless on a real floor — it gets ignored, and an ignored advisory is worth nothing (<a class="xref" href="#ch-17">Ch. 17</a>). The whole value of the forward output depends on a low false-positive rate, achieved on exactly the data where it is hardest.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-15"><span class="n">Previous</span>← 15 · How the Model Learns</a><a href="#ch-17"><span class="n">Next</span>17 · From Prediction to a Ranked Queue →</a></div>
+</section>
+
+
+<!-- ══ PART IV ══ -->
+<section class="plate part-plate" id="part-4">
+  <div class="part-plate-inner">
+    <div>
+      <span class="eyebrow">Part IV</span>
+      <hr class="rule-red">
+      <span class="num">IV</span>
+      <h2>The Advisory</h2>
+      <p class="lede">The model's job is not to predict for its own sake, but to hand a human a hypothesis worth checking — ranked, honest about its confidence, and clear that it advises rather than decides.</p>
+      <ul class="chlist">
+        <li><a href="#ch-17"><span class="n">17</span>From Prediction to a Ranked Queue</a></li>
+        <li><a href="#ch-18"><span class="n">18</span>Calibration</a></li>
+        <li><a href="#ch-19"><span class="n">19</span>What the Output Claims, and What It Does Not</a></li>
+        <li><a href="#ch-20"><span class="n">20</span>Presenting the Advisory</a></li>
+        <li><a href="#ch-21"><span class="n">21</span>The Commitments</a></li>
+      </ul>
+    </div>
+    <div class="ring-col"><svg id="ring-p4" viewBox="0 0 1000 1000" aria-label="Advisory ring"></svg></div>
+  </div>
+</section>
+<!-- ── Ch 17 ── -->
+<section id="ch-17">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">17</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 17</b></span><h2>From Prediction to a Ranked Queue</h2></div>
+  <div class="mini-ring"><svg id="ring-17" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>Run continuously, the two outputs become one specific, buildable thing. The model scores each stage on a schedule, computes attributions on any elevated prediction, filters by corroborating discrete events (<a class="xref" href="#ch-14">Ch. 14</a>), and emits a <strong>ranked queue of hypotheses</strong>: <em>here is the risk, here is the upstream signature that appears to drive it, go look.</em></p>
+<p>Standing this loop up is routine engineering. The difficulty is not the plumbing; it is keeping the queue worth a human's time. Because attribution surfaces whatever the model keyed on, it will sometimes key on a coincidence. Automating means generating candidate causes at volume — and most candidate causes are wrong.</p>
+<p>So the honest deliverable is not "the AI finds the root cause." It is a <strong>hypothesis-generation system for human investigators</strong>, judged by its <em>hit rate</em> — how often a flag, once investigated, pays off — not by whether any single flag is true.</p>
+<p class="callout">A queue that mostly wastes an investigator's time gets ignored — and an ignored advisory system is exactly as valuable as no system at all.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-16"><span class="n">Previous</span>← 16 · Precision on Sparse Labels</a><a href="#ch-18"><span class="n">Next</span>18 · Calibration →</a></div>
+</section>
+
+<!-- ── Ch 18 ── -->
+<section id="ch-18">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">18</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 18</b></span><h2>Calibration</h2></div>
+  <div class="mini-ring"><svg id="ring-18" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>The forward output states a confidence. That number has to mean something. <strong>Calibration</strong> is the property that it does: of all the stages the system flags at 64%, roughly 64% should actually slip.</p>
+<p class="callout">Of all the moments where the system says 64%, it should be right about 64% of the time.</p>
+<p>It is enforced by a post-training rescaling fit on the held-apart calibration split (<a class="xref" href="#ch-08">Ch. 08</a>) — a standard step (temperature scaling) that does not change which stages rank as riskier, only what the numbers claim.</p>
+<p class="note"><span class="nl">Where scrutiny lands</span>Calibration is earned on data and verified — and this is a line where labeled slips are scarce (<a class="xref" href="#ch-16">Ch. 16</a>), which is exactly the regime where calibration is hardest. Stating a calibrated confidence is a commitment, not a decoration; it is the number a careful reader will test first.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-17"><span class="n">Previous</span>← 17 · From Prediction to a Ranked Queue</a><a href="#ch-19"><span class="n">Next</span>19 · What the Output Claims →</a></div>
+</section>
+
+<!-- ── Ch 19 ── -->
+<section id="ch-19">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">19</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 19</b></span><h2>What the Output Claims, and What It Does Not</h2></div>
+  <div class="mini-ring"><svg id="ring-19" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>Two hard lines hold, and the output must state them rather than footnote them.</p>
+<p><strong>Importance, not cause.</strong> The attribution reports which inputs the prediction leaned on. The step from "the model keyed on the ECO-churn signature" to "the design churn is what's driving the slip and the cost" is an inference the attribution <em>enables</em>, and a human confirms. What the model produces is a strong <em>candidate</em> connection — correlational, not proven.</p>
+<p><strong>Advisory, not authority.</strong> The system flags for a human; it computes nothing the planners rely on and has no authority over the schedule. The advisory placement is not a limitation to engineer away — it reflects where trust in these methods actually stands.</p>
+<p class="callout">The system is worth building to surface hypotheses a human wouldn't otherwise see — not to make the call for them.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-18"><span class="n">Previous</span>← 18 · Calibration</a><a href="#ch-20"><span class="n">Next</span>20 · Presenting the Advisory →</a></div>
+</section>
+
+<!-- ── Ch 20 ── -->
+<section id="ch-20">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">20</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 20</b></span><h2>Presenting the Advisory</h2></div>
+  <div class="mini-ring"><svg id="ring-20" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>This chapter adds no model, and it is still necessary — because the purpose is to get a human looking at the right place earlier than a dashboard would, and that fails entirely if the human cannot read the output.</p>
+<p>There is a symmetry worth stating. This system exists because a disturbance spread across four systems is unreadable to a per-system monitor. Hand a person four systems and a score and they face the same problem. <strong>The interface exists to do for the human what the model did for the data.</strong></p>
+<p>It is one scrolling view with two registers stacked. On top, a live 3D model of the plant — the physical floor, the ground the systems only describe — with a compact inference layer over it: an <em>advisory</em> (never a verdict) carrying the calibrated certainty, the four systems as tiles scaled by how much each drove the flag, and the implicated zones lit in two roles — the elements the inference reads <em>from</em>, and the element it infers is <em>affected</em>, drawn as inferred rather than observed. Below, the analysis: a ranked queue of flagged events; for the selected one, the advisory in a sentence, a plain-language description in the honest correlational voice, and a recommended <em>place to look</em>; then the four sources by attribution weight, the affected cell against an explicitly calm remainder, and a planned-versus-inferred schedule.</p>
+<p class="callout">Presentation is a claim. An interface that shows "SN-9 — 64%" in large type has asserted a cause, whatever the footnote says.</p>
+<p>So the honest seams are built in, not appended: two outputs kept visually distinct (forward flag versus backward attribution), learned kept distinct from deterministic, importance from causation, inferred from observed. It must also show the contrast — every individual system reading nominal while the advisory flags the combined, propagating signature. That is the claim of <a class="xref" href="#ch-01">Ch. 01</a>, demonstrated rather than asserted.</p>
+
+</div>
+<div class="ch-foot"><a href="#ch-19"><span class="n">Previous</span>← 19 · What the Output Claims</a><a href="#ch-21"><span class="n">Next</span>21 · The Commitments →</a></div>
+</section>
+
+<!-- ── Ch 21 ── -->
+<section id="ch-21">
+<div class="ch-band"><div class="ch-band-inner">
+  <div class="num">21</div>
+  <div class="txt"><span class="ch-label">Part IV · <b>Chapter 21</b></span><h2>The Commitments</h2></div>
+  <div class="mini-ring"><svg id="ring-21" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+</div></div><div class="ch-seam"></div>
+<div class="body">
+
+<p>Five constraints hold regardless of how the design evolves:</p>
+<ol>
+  <li><strong>It must beat the baseline it claims to beat.</strong> The system must catch cross-system, sub-threshold disturbances that per-system dashboards miss — on the same data.</li>
+  <li><strong>The data stays disjoint.</strong> Training, validation, calibration, and test splits are generated separately and kept apart. The test split is touched once. At inference, the model sees only the systems' signals — labels stay out.</li>
+  <li><strong>Attribution indicates importance, not cause</strong> — and the output says so.</li>
+  <li><strong>The system advises; it does not act.</strong> The existing planning stack keeps all authority over the schedule.</li>
+  <li><strong>The advisory must be legible — and honest.</strong> An output a human cannot read, or reads as a harder claim than it is, will be ignored or will mislead. Legibility and honesty are one requirement.</li>
+</ol>
+
+</div>
+<div class="ch-foot"><a href="#ch-20"><span class="n">Previous</span>← 20 · Presenting the Advisory</a><a href="#glossary"><span class="n">Next</span>Glossary →</a></div>
+</section>
+
+<!-- END MATTER -->
+<div class="endmatter">
+<h2 id="glossary">Glossary</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><strong>System of record</strong></td><td>One planning system's database of what its slice of the world is believed to be</td></tr>
+<tr><td><strong>Cross-system, sub-threshold disturbance</strong></td><td>A problem visible only in the joint pattern across systems over time, with no system crossing its own limit</td></tr>
+<tr><td><strong>Dense stream</strong></td><td>A continuously-sampled signal (D365 receipts/variance, Opcenter dwell/cycle/WIP) — the predictive substrate</td></tr>
+<tr><td><strong>Sparse event</strong></td><td>An occasional discrete record (a Teamcenter ECO release, an Epsilon3 requalification) — used to corroborate</td></tr>
+<tr><td><strong>Propagation</strong></td><td>One root cause moving through systems in sequence and surfacing where it did not start</td></tr>
+<tr><td><strong>Generator</strong></td><td>The process-model code producing simulated four-system streams; couplings carry an injected root disturbance</td></tr>
+<tr><td><strong>Stage</strong></td><td>One part's full multivariate history across the four systems — the unit the model learns from</td></tr>
+<tr><td><strong>Label</strong></td><td>Recorded outcome of a stage (slip, magnitude, downstream anomalies) — used only for grading, never shown to the model</td></tr>
+<tr><td><strong>Split</strong></td><td>A non-overlapping group of stages: training / validation / calibration / test</td></tr>
+<tr><td><strong>Multivariate sequence</strong></td><td>Per-step vectors over time; the four systems read as one ordered sequence</td></tr>
+<tr><td><strong>Attention</strong></td><td>The operation letting each element weigh its learned, data-computed relevance to every other</td></tr>
+<tr><td><strong>Transformer</strong></td><td>The architecture built around attention; here, over the four systems' interleaved sequence</td></tr>
+<tr><td><strong>Forward prediction</strong></td><td>The learned early flag that a stage is developing the shape of stages that slipped</td></tr>
+<tr><td><strong>Input attribution</strong></td><td>SHAP / gradient methods reporting which inputs drove a given output — importance, not cause</td></tr>
+<tr><td><strong>Corroboration</strong></td><td>A deterministic gate requiring a dense-stream flag to line up with a discrete event before it queues</td></tr>
+<tr><td><strong>Hypothesis queue</strong></td><td>The ranked list of flagged events emitted for human investigation</td></tr>
+<tr><td><strong>Hit rate</strong></td><td>How often a flag, once investigated, pays off — the measure the queue is judged by</td></tr>
+<tr><td><strong>Calibration</strong></td><td>A post-training rescaling so a stated confidence matches observed slip rate</td></tr>
+<tr><td><strong>Advisory</strong></td><td>An output that surfaces a candidate for a human to investigate; it holds no authority over the schedule</td></tr>
+</tbody></table></div>
+
+<h2 id="open-items">Open Items</h2>
+<p style="color:var(--muted);font-size:.95rem">The conceptual design is complete end to end, and the interface is built. What remains is decision, construction, and measurement — not explanation.</p>
+<ul class="openitems">
+  <p class="group">Decisions to make</p>
+  <li data-n="1">Training objective — how a stage's outcome is framed for the model, and how the two outputs (forward flag, backward attribution) are jointly trained (Ch. 12–13).</li>
+  <li data-n="2">Numerical constants — nominal operating values, variance bands, dwell ranges, ECO/requal rates, and the couplings that carry the root disturbance (Ch. 07).</li>
+  <li data-n="3">Corroboration policy — which discrete events, in what window, gate a dense-stream flag before it reaches the queue (Ch. 14).</li>
+  <li data-n="4">Flag threshold — tuned against a real human-cost function: the point where an investigated flag pays off often enough to stay trusted (Ch. 16–17).</li>
+  <p class="group">To build</p>
+  <li data-n="5">The generator — the four-system process model, the root-disturbance injector, and the split machinery (Ch. 07–08).</li>
+  <li data-n="6">The per-system baseline — the conventional dashboards we must beat. Without it, the central claim of Ch. 01 is untested.</li>
+  <li data-n="7">The model — the transformer over the interleaved sequence, the attribution pass, and the deterministic corroboration and cost-alignment layers (Ch. 09–14).</li>
+  <li data-n="8">Calibration — temperature scaling on the calibration split (Ch. 18).</li>
+  <p class="group">To prove</p>
+  <li data-n="9">The target test — hit rate at a pre-registered false-alarm ceiling, on the untouched test split, against the per-system baseline, on the same data (Ch. 16–17, Ch. 21).</li>
+  <li data-n="10">A second disturbance — structurally different from the ECO-churn chain. Until then we have shown the system detects this disturbance, not that it detects unfamiliar ones (Ch. 15).</li>
+  <p class="group">Known risks</p>
+  <li data-n="11">Generator artifacts — the deepest risk (Ch. 15). A correlation real in the synthetic runs but incidental to the world would look like signal in training and evaporate on a real feed.</li>
+  <li data-n="12">Precision on sparse labels — earliness is worthless without a low false-positive rate, hardest to achieve on exactly the data-poor line where it matters most (Ch. 16).</li>
+  <li data-n="13">Presentation as claim — the interface can betray "importance, not cause" in a single confident headline (Ch. 19–20). The honest seams must be structural, not parenthetical.</li>
+</ul>
+</div>
+
+<!-- COLOPHON -->
+<section class="plate colophon" aria-label="Colophon">
+  <div class="colophon-ring"><svg id="ring-col" viewBox="0 0 1000 1000" aria-hidden="true"></svg></div>
+  <p class="em">"Importance, not cause — a candidate for review, not a verdict."</p>
+  <p>The Manufacturing Reality Orchestrator · <b>How It Works</b><br>
+  A living document, revised as the project develops.<br>
+  Set in <b>Space Grotesk</b>, system sans, and <b>IBM Plex Mono</b>.<br>
+  <b>William Opyrchal</b> · 2026 · williamopyrchal.com</p>
+</section>
+
+</main>
+<footer style="border-top:1px solid rgba(255,255,255,.08);padding:1.2rem clamp(1rem,4vw,2.5rem);font-family:var(--f-mono);font-size:.7rem;color:var(--muted);text-align:center;letter-spacing:.04em;background:var(--bg2)">
+  © 2026 William Opyrchal · illustrative · synthetic scenario · no proprietary data · draft complete in concept and interface; open on construction and evidence
+</footer>
+<script>
+var EMBLEM_INNER = '\n<path d="M910.0,97.0 Q773.0,74.0 651.6,141.6" fill="none" stroke="#ff8443" stroke-width="3.2153846153846155" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.95"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.80s" repeatCount="indefinite"/><\/path>\n<path d="M910.0,163.0 Q789.8,115.3 675.3,175.5" fill="none" stroke="#f0b93a" stroke-width="2.523076923076923" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.8"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.87s" repeatCount="indefinite"/><\/path>\n<path d="M910.0,229.0 Q799.3,160.8 681.8,216.4" fill="none" stroke="#e8a02f" stroke-width="2.330769230769231" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.7583333333333333"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.94s" repeatCount="indefinite"/><\/path>\n<path d="M910.0,295.0 Q801.1,206.4 669.7,256.0" fill="none" stroke="#3fc9c0" stroke-width="1.9076923076923078" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.6666666666666666"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.01s" repeatCount="indefinite"/><\/path>\n<path d="M503.5,178.5 Q216.9,187.0 37.2,410.4" fill="none" stroke="#ff8a3a" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="10 9" opacity="0.95"><animate attributeName="stroke-dashoffset" from="0" to="-19" dur="0.85s" repeatCount="indefinite"/><\/path>\n<g><polygon points="86.0,354.0 161.2,387.6 86.0,421.2 10.8,387.6" fill="none" stroke="#2a3b49" stroke-width="1" stroke-dasharray="3 5" opacity="0.5"/><polygon points="150.0,360.0 262.8,410.4 150.0,460.8 37.2,410.4" fill="#ff8a3a" fill-opacity="0.14"/><path d="M150.0,360.0 L262.8,410.4 L150.0,460.8 L37.2,410.4 Z" fill="none" stroke="#ff8a3a" stroke-width="2" stroke-dasharray="6 6" opacity="0.95"><animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/><\/path><polygon points="180.0,390.0 212.0,404.3 212.0,374.3 180.0,360.0" fill="#43b0a6" fill-opacity="0.55"/><polygon points="212.0,404.3 180.0,418.6 180.0,388.6 212.0,374.3" fill="#43b0a6" fill-opacity="0.34"/><polygon points="180.0,360.0 212.0,374.3 180.0,388.6 148.0,374.3" fill="#43b0a6" fill-opacity="0.82"/><\/g>\n<rect x="910" y="70" width="270" height="54" rx="5" fill="#0d151d" stroke="#ff8443" stroke-width="1.8"/><rect x="910" y="70" width="270" height="54" rx="5" fill="#ff8443" fill-opacity="0.10"/><circle cx="925" cy="87" r="4" fill="#ff8443"/><text x="936.0" y="91.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Teamcenter<\/text><text x="936.0" y="105.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">PLM · ECO churn<\/text><text x="1166.0" y="91.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="13" fill="#ff8443" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">42%<\/text><path d="M1145,111 A11 11 0 0 1 1167,111" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="111" x2="1165.0" y2="111.0" stroke="#ff8443" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="115.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution<\/text>\n<rect x="910" y="136" width="270" height="54" rx="5" fill="#0d151d" stroke="#f0b93a" stroke-width="1.1"/><circle cx="925" cy="153" r="4" fill="#f0b93a"/><text x="936.0" y="157.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Dynamics 365<\/text><text x="936.0" y="171.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">ERP/MRP · supplier variance<\/text><text x="1166.0" y="157.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="11" fill="#f0b93a" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">24%<\/text><path d="M1145,177 A11 11 0 0 1 1167,177" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="177" x2="1158.0" y2="168.2" stroke="#f0b93a" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="181.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution<\/text>\n<rect x="910" y="202" width="270" height="54" rx="5" fill="#0d151d" stroke="#e8a02f" stroke-width="1.1"/><circle cx="925" cy="219" r="4" fill="#e8a02f"/><text x="936.0" y="223.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Opcenter<\/text><text x="936.0" y="237.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">MES · mill dwell<\/text><text x="1166.0" y="223.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="11" fill="#e8a02f" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">19%<\/text><path d="M1145,243 A11 11 0 0 1 1167,243" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="243" x2="1154.7" y2="234.1" stroke="#e8a02f" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="247.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution<\/text>\n<rect x="910" y="268" width="270" height="54" rx="5" fill="#0d151d" stroke="#3fc9c0" stroke-width="1.1"/><circle cx="925" cy="285" r="4" fill="#3fc9c0"/><text x="936.0" y="289.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Epsilon3<\/text><text x="936.0" y="303.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">procedures · requal<\/text><text x="1166.0" y="289.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="11" fill="#3fc9c0" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">8%<\/text><path d="M1145,309 A11 11 0 0 1 1167,309" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="309" x2="1148.6" y2="303.9" stroke="#3fc9c0" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="313.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution<\/text>\n<g><circle cx="590" cy="210" r="92" fill="#05080c"/><circle cx="590" cy="210" r="92" fill="none" stroke="#26333e" stroke-width="1.5"/><line x1="679.0" y1="210.0" x2="670.0" y2="210.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="678.7" y1="217.8" x2="674.7" y2="217.4" stroke="#33424e" stroke-width="1"/><line x1="677.6" y1="225.5" x2="673.7" y2="224.8" stroke="#33424e" stroke-width="1"/><line x1="676.0" y1="233.0" x2="672.1" y2="232.0" stroke="#33424e" stroke-width="1"/><line x1="673.6" y1="240.4" x2="669.9" y2="239.1" stroke="#33424e" stroke-width="1"/><line x1="670.7" y1="247.6" x2="667.0" y2="245.9" stroke="#33424e" stroke-width="1"/><line x1="667.1" y1="254.5" x2="659.3" y2="250.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="662.9" y1="261.0" x2="659.6" y2="258.8" stroke="#33424e" stroke-width="1"/><line x1="658.2" y1="267.2" x2="655.1" y2="264.6" stroke="#33424e" stroke-width="1"/><line x1="652.9" y1="272.9" x2="650.1" y2="270.1" stroke="#33424e" stroke-width="1"/><line x1="647.2" y1="278.2" x2="644.6" y2="275.1" stroke="#33424e" stroke-width="1"/><line x1="641.0" y1="282.9" x2="638.8" y2="279.6" stroke="#33424e" stroke-width="1"/><line x1="634.5" y1="287.1" x2="630.0" y2="279.3" stroke="#5a6b78" stroke-width="1.4"/><line x1="627.6" y1="290.7" x2="625.9" y2="287.0" stroke="#33424e" stroke-width="1"/><line x1="620.4" y1="293.6" x2="619.1" y2="289.9" stroke="#33424e" stroke-width="1"/><line x1="613.0" y1="296.0" x2="612.0" y2="292.1" stroke="#33424e" stroke-width="1"/><line x1="605.5" y1="297.6" x2="604.8" y2="293.7" stroke="#33424e" stroke-width="1"/><line x1="597.8" y1="298.7" x2="597.4" y2="294.7" stroke="#33424e" stroke-width="1"/><line x1="590.0" y1="299.0" x2="590.0" y2="290.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="582.2" y1="298.7" x2="582.6" y2="294.7" stroke="#33424e" stroke-width="1"/><line x1="574.5" y1="297.6" x2="575.2" y2="293.7" stroke="#33424e" stroke-width="1"/><line x1="567.0" y1="296.0" x2="568.0" y2="292.1" stroke="#33424e" stroke-width="1"/><line x1="559.6" y1="293.6" x2="560.9" y2="289.9" stroke="#33424e" stroke-width="1"/><line x1="552.4" y1="290.7" x2="554.1" y2="287.0" stroke="#33424e" stroke-width="1"/><line x1="545.5" y1="287.1" x2="550.0" y2="279.3" stroke="#5a6b78" stroke-width="1.4"/><line x1="539.0" y1="282.9" x2="541.2" y2="279.6" stroke="#33424e" stroke-width="1"/><line x1="532.8" y1="278.2" x2="535.4" y2="275.1" stroke="#33424e" stroke-width="1"/><line x1="527.1" y1="272.9" x2="529.9" y2="270.1" stroke="#33424e" stroke-width="1"/><line x1="521.8" y1="267.2" x2="524.9" y2="264.6" stroke="#33424e" stroke-width="1"/><line x1="517.1" y1="261.0" x2="520.4" y2="258.8" stroke="#33424e" stroke-width="1"/><line x1="512.9" y1="254.5" x2="520.7" y2="250.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="509.3" y1="247.6" x2="513.0" y2="245.9" stroke="#33424e" stroke-width="1"/><line x1="506.4" y1="240.4" x2="510.1" y2="239.1" stroke="#33424e" stroke-width="1"/><line x1="504.0" y1="233.0" x2="507.9" y2="232.0" stroke="#33424e" stroke-width="1"/><line x1="502.4" y1="225.5" x2="506.3" y2="224.8" stroke="#33424e" stroke-width="1"/><line x1="501.3" y1="217.8" x2="505.3" y2="217.4" stroke="#33424e" stroke-width="1"/><line x1="501.0" y1="210.0" x2="510.0" y2="210.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="501.3" y1="202.2" x2="505.3" y2="202.6" stroke="#33424e" stroke-width="1"/><line x1="502.4" y1="194.5" x2="506.3" y2="195.2" stroke="#33424e" stroke-width="1"/><line x1="504.0" y1="187.0" x2="507.9" y2="188.0" stroke="#33424e" stroke-width="1"/><line x1="506.4" y1="179.6" x2="510.1" y2="180.9" stroke="#33424e" stroke-width="1"/><line x1="509.3" y1="172.4" x2="513.0" y2="174.1" stroke="#33424e" stroke-width="1"/><line x1="512.9" y1="165.5" x2="520.7" y2="170.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="517.1" y1="159.0" x2="520.4" y2="161.2" stroke="#33424e" stroke-width="1"/><line x1="521.8" y1="152.8" x2="524.9" y2="155.4" stroke="#33424e" stroke-width="1"/><line x1="527.1" y1="147.1" x2="529.9" y2="149.9" stroke="#33424e" stroke-width="1"/><line x1="532.8" y1="141.8" x2="535.4" y2="144.9" stroke="#33424e" stroke-width="1"/><line x1="539.0" y1="137.1" x2="541.2" y2="140.4" stroke="#33424e" stroke-width="1"/><line x1="545.5" y1="132.9" x2="550.0" y2="140.7" stroke="#5a6b78" stroke-width="1.4"/><line x1="552.4" y1="129.3" x2="554.1" y2="133.0" stroke="#33424e" stroke-width="1"/><line x1="559.6" y1="126.4" x2="560.9" y2="130.1" stroke="#33424e" stroke-width="1"/><line x1="567.0" y1="124.0" x2="568.0" y2="127.9" stroke="#33424e" stroke-width="1"/><line x1="574.5" y1="122.4" x2="575.2" y2="126.3" stroke="#33424e" stroke-width="1"/><line x1="582.2" y1="121.3" x2="582.6" y2="125.3" stroke="#33424e" stroke-width="1"/><line x1="590.0" y1="121.0" x2="590.0" y2="130.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="597.8" y1="121.3" x2="597.4" y2="125.3" stroke="#33424e" stroke-width="1"/><line x1="605.5" y1="122.4" x2="604.8" y2="126.3" stroke="#33424e" stroke-width="1"/><line x1="613.0" y1="124.0" x2="612.0" y2="127.9" stroke="#33424e" stroke-width="1"/><line x1="620.4" y1="126.4" x2="619.1" y2="130.1" stroke="#33424e" stroke-width="1"/><line x1="627.6" y1="129.3" x2="625.9" y2="133.0" stroke="#33424e" stroke-width="1"/><line x1="634.5" y1="132.9" x2="630.0" y2="140.7" stroke="#5a6b78" stroke-width="1.4"/><line x1="641.0" y1="137.1" x2="638.8" y2="140.4" stroke="#33424e" stroke-width="1"/><line x1="647.2" y1="141.8" x2="644.6" y2="144.9" stroke="#33424e" stroke-width="1"/><line x1="652.9" y1="147.1" x2="650.1" y2="149.9" stroke="#33424e" stroke-width="1"/><line x1="658.2" y1="152.8" x2="655.1" y2="155.4" stroke="#33424e" stroke-width="1"/><line x1="662.9" y1="159.0" x2="659.6" y2="161.2" stroke="#33424e" stroke-width="1"/><line x1="667.1" y1="165.5" x2="659.3" y2="170.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="670.7" y1="172.4" x2="667.0" y2="174.1" stroke="#33424e" stroke-width="1"/><line x1="673.6" y1="179.6" x2="669.9" y2="180.9" stroke="#33424e" stroke-width="1"/><line x1="676.0" y1="187.0" x2="672.1" y2="188.0" stroke="#33424e" stroke-width="1"/><line x1="677.6" y1="194.5" x2="673.7" y2="195.2" stroke="#33424e" stroke-width="1"/><line x1="678.7" y1="202.2" x2="674.7" y2="202.6" stroke="#33424e" stroke-width="1"/><path d="M590.0,127.0 A83,83 0 1 1 526.0,262.9" fill="none" stroke="#1a0d05" stroke-width="9" stroke-linecap="round" opacity="0.85"/><path d="M590.0,127.0 A83,83 0 1 1 526.0,262.9" fill="none" stroke="#ff6a3d" stroke-width="6" stroke-linecap="round"/><circle cx="590" cy="210" r="52" fill="none" stroke="#182430" stroke-width="1"/><text x="590.0" y="174.0" font-family="ui-monospace,Menlo,monospace" font-size="7.5" fill="#c9d6e2" text-anchor="middle" letter-spacing="2" font-weight="500" opacity="1">INFERENCE<\/text><text x="590.0" y="185.0" font-family="ui-monospace,Menlo,monospace" font-size="7.5" fill="#c9d6e2" text-anchor="middle" letter-spacing="2" font-weight="500" opacity="1">ADVISORY<\/text><text x="590.0" y="216.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="25" fill="#eaf1f7" text-anchor="middle" letter-spacing="0" font-weight="700" opacity="1">3–4 wk<\/text><text x="590.0" y="231.0" font-family="ui-monospace,Menlo,monospace" font-size="8.5" fill="#b7c4d0" text-anchor="middle" letter-spacing="0" font-weight="400" opacity="1">SN-9 · slip risk<\/text><text x="590.0" y="253.0" font-family="\'Space Grotesk\',system-ui,sans-serif" font-size="15" fill="#ff8a4d" text-anchor="middle" letter-spacing="0.5" font-weight="700" opacity="1">64%<\/text><\/g>\n';
+
+(function(){
+  var NS="http://www.w3.org/2000/svg";
+  function el(svg,tag,a){var e=document.createElementNS(NS,tag);for(var k in a)e.setAttribute(k,a[k]);svg.appendChild(e);return e;}
+  function txt(svg,x,y,str,size,fill,ls,weight,font){var t=el(svg,'text',{x:x,y:y,'text-anchor':'middle','font-family':font||'ui-monospace,Menlo,monospace','font-size':size,fill:fill,'letter-spacing':ls||0,'font-weight':weight||400});t.textContent=str;return t;}
+  function bezel(svg,labels){
+    var C=500,R=labels?405:430,ra=R-Math.round(R*0.09),cert=0.64;
+    svg.setAttribute('viewBox','0 0 1000 1000');
+    el(svg,'circle',{cx:C,cy:C,r:R,fill:'#05080c'});
+    el(svg,'circle',{cx:C,cy:C,r:R,fill:'none',stroke:'#26333e','stroke-width':R*0.016});
+    for(var i=0;i<72;i++){var a=i*5*Math.PI/180,maj=(i%6===0),ro=R-R*0.03,ri=R-(maj?R*0.13:R*0.08);
+      el(svg,'line',{x1:(C+ro*Math.cos(a)).toFixed(1),y1:(C+ro*Math.sin(a)).toFixed(1),x2:(C+ri*Math.cos(a)).toFixed(1),y2:(C+ri*Math.sin(a)).toFixed(1),stroke:maj?'#5a6b78':'#33424e','stroke-width':maj?R*0.014:R*0.009});}
+    var a0=-Math.PI/2,a1=(-90+360*cert)*Math.PI/180,lg=cert>0.5?1:0;
+    var x0=C+ra*Math.cos(a0),y0=C+ra*Math.sin(a0),x1=C+ra*Math.cos(a1),y1=C+ra*Math.sin(a1);
+    var d='M'+x0.toFixed(1)+','+y0.toFixed(1)+' A'+ra+','+ra+' 0 '+lg+' 1 '+x1.toFixed(1)+','+y1.toFixed(1);
+    el(svg,'path',{d:d,fill:'none',stroke:'#1a0d05','stroke-width':R*0.09,'stroke-linecap':'round',opacity:0.85});
+    el(svg,'path',{d:d,fill:'none',stroke:'#ff7d42','stroke-width':R*0.065,'stroke-linecap':'round'});
+    el(svg,'circle',{cx:C,cy:C,r:R-R*0.44,fill:'none',stroke:'#182430','stroke-width':2});
+    if(labels){
+      txt(svg,C,C-R*0.40,'INFERENCE',R*0.075,'#c9d6e2',R*0.03,500);
+      txt(svg,C,C-R*0.29,'ADVISORY',R*0.075,'#c9d6e2',R*0.03,500);
+      txt(svg,C,C+R*0.07,'3\u20134 wk',R*0.26,'#eef4fa',0,700,"'Space Grotesk',system-ui,sans-serif");
+      txt(svg,C,C+R*0.22,'SN-9 \u00b7 slip risk',R*0.085,'#c8d4e0',0,400);
+      txt(svg,C,C+R*0.45,'64%',R*0.16,'#ff8a4d',0,700,"'Space Grotesk',system-ui,sans-serif");
+    }
+  }
+  function drawAll(){
+    var cover=document.getElementById('ring-cover');
+    if(cover){cover.setAttribute('viewBox','0 0 1240 560');cover.setAttribute('preserveAspectRatio','xMidYMid meet');cover.innerHTML=EMBLEM_INNER;}
+    var bigs=['ring-title','ring-p1','ring-p2','ring-p3','ring-p4','ring-col'];
+    bigs.forEach(function(id){var s=document.getElementById(id);if(s)bezel(s,true);});
+    for(var n=1;n<=21;n++){var id='ring-'+(n<10?'0':'')+n;var s=document.getElementById(id);if(s)bezel(s,false);}
+  }
+  if(document.readyState!=='loading')drawAll();else document.addEventListener('DOMContentLoaded',drawAll);
+})();
+
+(function(){
+"use strict";
+const rhead   = document.getElementById("rhead");
+const mrail   = document.getElementById("mrail");
+const mtoggle = document.getElementById("mrail-toggle");
+const coverEl = document.querySelector(".cover");
+
+/* --- scroll-spy: chapters --- */
+const railItems = Array.from(mrail.querySelectorAll(".mrail-item"));
+const chapterIds = railItems.map(a => a.getAttribute("href").slice(1));
+const chapterEls = chapterIds.map(id => document.getElementById(id)).filter(Boolean);
+
+/* --- dark-plate detection: plates to fade over --- */
+const darkEls = Array.from(document.querySelectorAll(".plate, .ch-band"));
+
+let rafPending = false;
+function onScroll(){
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(()=>{
+    rafPending = false;
+    const sy = window.scrollY;
+    const vh = window.innerHeight;
+
+    /* running head */
+    const coverThreshold = coverEl ? coverEl.offsetHeight - 80 : 600;
+    if(sy > coverThreshold) rhead.classList.add("lit");
+    else rhead.classList.remove("lit");
+
+    /* scroll-spy: find chapter whose top is within the upper third of viewport */
+    let activeId = null;
+    for(let i = chapterEls.length - 1; i >= 0; i--){
+      const rect = chapterEls[i].getBoundingClientRect();
+      if(rect.top <= vh * 0.38){
+        activeId = chapterIds[i];
+        break;
+      }
+    }
+    railItems.forEach(a => {
+      const isActive = a.getAttribute("href") === "#" + activeId;
+      a.classList.toggle("active", isActive);
+    });
+
+    /* dark-plate fade: is the rail's midpoint overlapping a dark section? */
+    const railMidX = mrail.offsetWidth / 2;
+    const railMidY = sy + vh / 2;
+    let onDark = false;
+    /* only fade when past cover */
+    if(sy > coverThreshold){
+      for(const el of darkEls){
+        const top  = el.offsetTop;
+        const bot  = top + el.offsetHeight;
+        if(railMidY >= top && railMidY <= bot){ onDark = true; break; }
+      }
+    } else {
+      onDark = true; /* cover itself is dark — hide rail */
+    }
+    mrail.classList.toggle("on-dark", onDark);
+  });
+}
+
+onScroll();
+window.addEventListener("scroll", onScroll, {passive:true});
+window.addEventListener("resize", onScroll, {passive:true});
+
+/* --- mobile toggle --- */
+if(mtoggle){
+  mtoggle.addEventListener("click", ()=>{
+    const open = mrail.classList.toggle("open");
+    mtoggle.textContent = open ? "✕" : "≡";
+    mtoggle.setAttribute("aria-expanded", String(open));
+  });
+  /* close on item click (mobile) */
+  railItems.forEach(a => a.addEventListener("click", ()=>{
+    mrail.classList.remove("open");
+    mtoggle.textContent = "≡";
+    mtoggle.setAttribute("aria-expanded","false");
+  }));
+}
+})();
+</script>
+</body>
+</html>
