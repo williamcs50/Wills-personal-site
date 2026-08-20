@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manufacturing Reality Orchestrator — William Opyrchal</title>
+  <meta name="description" content="A design-stage prototype that reads four rocket-factory planning systems together to flag a schedule slip before it surfaces — and traces the same signature to a cost problem no one had connected to it." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://williamopyrchal.com/mro_case_study_page.html" />
+  <meta property="og:title" content="Manufacturing Reality Orchestrator — Cross-System Disturbance Detection" />
+  <meta property="og:description" content="A rocket line's four planning systems each stay within their own limits while what they believe drifts from what's true on the floor. An advisory layer reads them together, flags a schedule slip before it surfaces, and traces the same signature to a cost problem no one had connected to it." />
+  <meta property="og:image" content="https://williamopyrchal.com/og-mro.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Manufacturing Reality Orchestrator — Cross-System Disturbance Detection" />
+  <meta name="twitter:description" content="Reading four planning systems together to flag a schedule slip before it surfaces, and trace the same signature to an unconnected cost problem. A design-stage research prototype." />
+  <meta name="twitter:image" content="https://williamopyrchal.com/og-mro.png" />
+
+  <style>
+    :root {
+      --bg: #16181C;             /* deep near-black (like Apple's iPhone dark pages) */
+      --bg-alt: #1D1F23;
+      --bg-section: #232529;
+      --ink: #F5F5F7;
+      --ink-2: #C7C7CC;
+      --muted: #98989D;
+      --faint: #6E6E73;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.06);
+      --link: #2997FF;           /* Apple system blue, dark-mode variant */
+      --link-hover: #5AB0FF;
+      --accent: #2997FF;
+      --code-bg: #0F1115;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+              "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 17px;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: var(--link); text-decoration: none; transition: color 160ms ease; }
+    a:hover { color: var(--link-hover); }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+    .container-narrow {
+      max-width: 760px;
+      margin: 0 auto;
+      padding-left: 28px;
+      padding-right: 28px;
+    }
+
+    /* ---------- Nav ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(22, 24, 28, 0.78);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      transition: color 160ms ease;
+    }
+    .nav-back:hover { color: var(--ink); }
+    .nav-back .chev { transform: translateY(-1px); }
+    .nav-brand {
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .nav-spacer { width: 80px; }   /* visual balance */
+
+    /* ---------- Type ---------- */
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      font-weight: 600;
+      font-size: clamp(40px, 6vw, 80px);
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--ink);
+      margin: 0;
+    }
+    h2 {
+      font-weight: 600;
+      font-size: clamp(28px, 3.4vw, 40px);
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      color: var(--ink);
+      margin: 0;
+    }
+    h3 {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--link);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 18px;
+    }
+
+    .lede {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: 0.004em;
+      line-height: 1.35;
+    }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      padding: 96px 0 80px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .hero-inner > * {
+      opacity: 0;
+      transform: translateY(28px);
+      animation: heroIn 1100ms cubic-bezier(.16,.84,.3,1) forwards;
+    }
+    .hero-inner > *:nth-child(1) { animation-delay: 80ms; }
+    .hero-inner > *:nth-child(2) { animation-delay: 220ms; }
+    .hero-inner > *:nth-child(3) { animation-delay: 380ms; }
+    .hero-inner > *:nth-child(4) { animation-delay: 560ms; }
+    @keyframes heroIn { to { opacity: 1; transform: none; } }
+
+    .hero h1 { max-width: 20ch; margin-bottom: 22px; }
+    .hero .lede { max-width: 56ch; margin-bottom: 28px; }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .hero-meta strong {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+
+    /* ---------- Sections ---------- */
+    .section { padding: 100px 0; border-bottom: 1px solid var(--line-soft); }
+    .section:last-of-type { border-bottom: none; }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+
+    /* ---------- Prose ---------- */
+    .prose { max-width: 680px; }
+    .prose p {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 24px;
+      letter-spacing: -0.01em;
+    }
+    .prose p strong { color: var(--ink); font-weight: 600; }
+    .prose p em { color: var(--ink); font-style: italic; }
+    .prose ul {
+      margin: 0 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .prose li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+    .prose li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 12px;
+      width: 8px; height: 1px;
+      background: var(--muted);
+    }
+    .prose code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+
+    /* ---------- Code block ---------- */
+    .code-block {
+      margin: 12px 0 32px;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      overflow-x: auto;
+      letter-spacing: 0;
+    }
+    .code-block .comment { color: var(--faint); }
+    .code-block .keyword { color: #FF6B7A; }
+    .code-block .num { color: #FFA94D; }
+
+    /* ---------- Pull-quote / callout ---------- */
+    .callout {
+      margin: 32px 0;
+      padding: 24px 28px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-alt);
+      border-radius: 0 12px 12px 0;
+    }
+    .callout p {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .callout .attribution {
+      display: block;
+      margin-top: 14px;
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    /* ---------- Stat row (key findings) ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 32px;
+    }
+    .stat {
+      background: var(--bg);
+      padding: 28px 24px;
+    }
+    .stat-number {
+      font-size: clamp(28px, 3.2vw, 40px);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin: 0 0 6px;
+      font-feature-settings: "tnum";
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Plot (inline SVG diagnostics) ---------- */
+    .plot {
+      margin: 16px 0 32px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 8px 8px 4px;
+      overflow: hidden;
+    }
+    .plot svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      background: var(--code-bg);
+    }
+    .plot-caption {
+      margin: 14px 14px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 0;
+      line-height: 1.5;
+    }
+
+    /* ---------- Stack section (dark variant of skills) ---------- */
+    .stack-section { background: var(--bg-alt); padding: 80px 0; border-bottom: 1px solid var(--line-soft); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 0.7fr 1.3fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .stack-meta h2 { font-size: clamp(28px, 3vw, 36px); }
+    .stack-meta p { color: var(--muted); font-size: 16px; margin: 14px 0 0; }
+    .stack-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 36px;
+    }
+    .stack-cat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .stack-list { list-style: none; padding: 0; margin: 0; }
+    .stack-list li {
+      font-size: 15px;
+      color: var(--ink);
+      padding: 7px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* ---------- Links section ---------- */
+    .links {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    @media (max-width: 980px) { .links { grid-template-columns: repeat(2, 1fr); } }
+    .link-card {
+      display: block;
+      padding: 24px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .link-card:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .link-card-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .link-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0 0 4px;
+    }
+    .link-card-meta {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .link-card .arrow {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--accent);
+      font-size: 16px;
+    }
+
+    /* ---------- Prev / Next ---------- */
+    .pager {
+      padding: 64px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .pager-link {
+      display: block;
+      padding: 28px;
+      background: var(--bg-alt);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+    .pager-link:hover {
+      border-color: var(--accent);
+      background: var(--bg-section);
+    }
+    .pager-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .pager-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      margin: 0;
+    }
+    .pager-link.next { text-align: right; }
+
+    /* ---------- Footer ---------- */
+    footer {
+      margin-top: 24px;
+      padding: 28px 0 36px;
+      background: var(--bg);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+      border-top: 1px solid var(--line-soft);
+    }
+    footer .container {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 880px) {
+      .stack-grid { grid-template-columns: 1fr; gap: 32px; }
+      .stack-categories { grid-template-columns: 1fr; gap: 24px; }
+      .stats { grid-template-columns: 1fr; }
+      .links { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .hero { padding: 64px 0 56px; }
+    }
+    @media (max-width: 640px) {
+      .pager { grid-template-columns: 1fr; }
+      .pager-link.next { text-align: left; }
+      h1 { font-size: clamp(34px, 9vw, 48px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .hero-inner > * { opacity: 1; transform: none; }
+    }
+
+    /* ---------- Primary button ---------- */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      padding: 13px 24px;
+      border-radius: 980px;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    }
+    .btn-primary:hover {
+      background: var(--link-hover);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(41, 151, 255, 0.28);
+    }
+    .btn-primary .pl { font-size: 12px; transform: translateY(0.5px); }
+
+    /* ---------- Hero demo embed ---------- */
+    .hero-inner > *:nth-child(5) { animation-delay: 720ms; }
+    .hero-demo { margin-top: 44px; }
+    .demo-frame {
+      position: relative;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #06090E;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+    }
+    .demo-chrome {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 15px;
+      background: rgba(8, 12, 18, 0.92);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .demo-chrome .dot { width: 10px; height: 10px; border-radius: 50%; background: #2A2F37; }
+    .demo-chrome .url {
+      margin-left: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--faint);
+      letter-spacing: 0;
+    }
+    .demo-stage { position: relative; width: 100%; overflow: hidden; }
+    .demo-scaler { position: absolute; top: 0; left: 0; transform-origin: top left; }
+    .demo-scaler iframe { width: 1280px; height: 720px; border: 0; display: block; }
+    .demo-poster {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      background:
+        radial-gradient(120% 90% at 72% 16%, rgba(67, 176, 166, 0.18), transparent 60%),
+        radial-gradient(90% 120% at 20% 90%, rgba(41, 151, 255, 0.13), transparent 55%),
+        linear-gradient(180deg, #0A0F16, #06090E);
+    }
+    .demo-poster .ring-motif { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; }
+    .demo-poster .pcontent {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .demo-poster .plabel {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #7FD8CF;
+      margin: 0;
+    }
+    .demo-poster .ptitle {
+      font-size: clamp(19px, 2.2vw, 25px);
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.022em;
+      max-width: 22ch;
+      margin: 0;
+    }
+    .demo-poster .phint {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--faint);
+      margin: 2px 0 0;
+    }
+    .demo-frame.loaded .demo-poster { display: none; }
+
+    /* ---------- The interface (UI beats) ---------- */
+    .ui-beats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 8px 0 36px;
+    }
+    .ui-beat { background: var(--bg); padding: 26px 24px 28px; }
+    .ui-beat .bn {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      margin: 0 0 14px;
+    }
+    .ui-beat h3 { margin: 0 0 8px; font-size: 18px; }
+    .ui-beat p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--muted); letter-spacing: -0.01em; }
+
+    @media (max-width: 880px) {
+      .ui-beats { grid-template-columns: 1fr; }
+    }
+  </style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20viewBox%3D%270%200%2064%2064%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2712%27%20fill%3D%27%230a1119%27/%3E%3Cpolygon%20points%3D%2714.0%2C34.0%2026.0%2C40.0%2038.0%2C34.0%2026.0%2C28.0%27%20fill%3D%27none%27%20stroke%3D%27%23ff8a3a%27%20stroke-width%3D%271.6%27%20stroke-dasharray%3D%273%203%27/%3E%3Ccircle%20cx%3D%2738.0%27%20cy%3D%2730.0%27%20r%3D%2712%27%20fill%3D%27%2305080c%27%20stroke%3D%27%2326333e%27%20stroke-width%3D%272%27/%3E%3Cpath%20d%3D%27M38.0%2C18.0%20A12%2012%200%201%201%2028.8%2C37.6%27%20fill%3D%27none%27%20stroke%3D%27%23ff6a3d%27%20stroke-width%3D%272.4%27%20stroke-linecap%3D%27round%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2718.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%23ff8443%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2725.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%23f0b93a%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2732.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%23e8a02f%27/%3E%3Crect%20x%3D%2754.0%27%20y%3D%2739.0%27%20width%3D%279%27%20height%3D%275%27%20rx%3D%271.4%27%20fill%3D%27%233fc9c0%27/%3E%3C/svg%3E">
+</head>
+<body>
+  <header>
+    <nav class="container">
+      <a class="nav-back" href="index.html"><span class="chev">&lsaquo;</span> Work</a>
+      <a class="nav-brand" href="index.html">William Opyrchal</a>
+      <span class="nav-spacer"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-inner">
+        <p class="eyebrow">Case Study &middot; 06</p>
+        <h1>Manufacturing Reality Orchestrator.</h1>
+        <p class="lede">
+          A rocket factory runs on planning systems built for stable production &mdash; but a rocket line
+          is not stable, and under the churn what the systems <em>believe</em> quietly drifts from what is
+          <em>true</em> on the floor, invisibly on any single screen. This is a designed system that reads the
+          four planning systems <em>together</em>, flags a schedule slip before it surfaces, and &mdash; from the
+          same model &mdash; surfaces the likely cause of a cost problem no one had connected to it.
+        </p>
+        <div class="hero-meta">
+          <span><strong>Stack:</strong> Python &middot; PyTorch &middot; Transformers &middot; Three.js</span>
+          <span><strong>Period:</strong> 2026</span>
+          <span><strong>Status:</strong> Design stage &mdash; the concept and interactive interface are built; no model has been trained. Illustrative, synthetic scenario, no proprietary data. The full technical account is in the <a href="mro_howitworks_book.html">How It Works</a> book.</span>
+        </div>
+        <div class="hero-demo">
+          <div class="demo-frame" id="demoFrame">
+            <div class="demo-chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="url">orchestrator &mdash; interface prototype</span>
+            </div>
+            <div class="demo-stage">
+              <div class="demo-scaler"></div>
+              <div class="demo-poster" role="button" tabindex="0"
+                   aria-label="Launch the interactive Manufacturing Reality Orchestrator demo">
+                <svg viewBox="0 0 1240 560" xmlns="http://www.w3.org/2000/svg" class="ring-motif" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+<path d="M910.0,97.0 Q773.0,74.0 651.6,141.6" fill="none" stroke="#ff8443" stroke-width="3.2153846153846155" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.95"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.80s" repeatCount="indefinite"/></path>
+<path d="M910.0,163.0 Q789.8,115.3 675.3,175.5" fill="none" stroke="#f0b93a" stroke-width="2.523076923076923" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.8"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.87s" repeatCount="indefinite"/></path>
+<path d="M910.0,229.0 Q799.3,160.8 681.8,216.4" fill="none" stroke="#e8a02f" stroke-width="2.330769230769231" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.7583333333333333"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="0.94s" repeatCount="indefinite"/></path>
+<path d="M910.0,295.0 Q801.1,206.4 669.7,256.0" fill="none" stroke="#3fc9c0" stroke-width="1.9076923076923078" stroke-linecap="round" stroke-dasharray="9 9" opacity="0.6666666666666666"><animate attributeName="stroke-dashoffset" from="0" to="-18" dur="1.01s" repeatCount="indefinite"/></path>
+<path d="M503.5,178.5 Q216.9,187.0 37.2,410.4" fill="none" stroke="#ff8a3a" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="10 9" opacity="0.95"><animate attributeName="stroke-dashoffset" from="0" to="-19" dur="0.85s" repeatCount="indefinite"/></path>
+<g><polygon points="86.0,354.0 161.2,387.6 86.0,421.2 10.8,387.6" fill="none" stroke="#2a3b49" stroke-width="1" stroke-dasharray="3 5" opacity="0.5"/><polygon points="150.0,360.0 262.8,410.4 150.0,460.8 37.2,410.4" fill="#ff8a3a" fill-opacity="0.14"/><path d="M150.0,360.0 L262.8,410.4 L150.0,460.8 L37.2,410.4 Z" fill="none" stroke="#ff8a3a" stroke-width="2" stroke-dasharray="6 6" opacity="0.95"><animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/></path><polygon points="180.0,390.0 212.0,404.3 212.0,374.3 180.0,360.0" fill="#43b0a6" fill-opacity="0.55"/><polygon points="212.0,404.3 180.0,418.6 180.0,388.6 212.0,374.3" fill="#43b0a6" fill-opacity="0.34"/><polygon points="180.0,360.0 212.0,374.3 180.0,388.6 148.0,374.3" fill="#43b0a6" fill-opacity="0.82"/></g>
+<rect x="910" y="70" width="270" height="54" rx="5" fill="#0d151d" stroke="#ff8443" stroke-width="1.8"/><rect x="910" y="70" width="270" height="54" rx="5" fill="#ff8443" fill-opacity="0.10"/><circle cx="925" cy="87" r="4" fill="#ff8443"/><text x="936.0" y="91.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Teamcenter</text><text x="936.0" y="105.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">PLM · ECO churn</text><text x="1166.0" y="91.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="13" fill="#ff8443" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">42%</text><path d="M1145,111 A11 11 0 0 1 1167,111" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="111" x2="1165.0" y2="111.0" stroke="#ff8443" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="115.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution</text>
+<rect x="910" y="136" width="270" height="54" rx="5" fill="#0d151d" stroke="#f0b93a" stroke-width="1.1"/><circle cx="925" cy="153" r="4" fill="#f0b93a"/><text x="936.0" y="157.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Dynamics 365</text><text x="936.0" y="171.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">ERP/MRP · supplier variance</text><text x="1166.0" y="157.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="11" fill="#f0b93a" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">24%</text><path d="M1145,177 A11 11 0 0 1 1167,177" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="177" x2="1158.0" y2="168.2" stroke="#f0b93a" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="181.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution</text>
+<rect x="910" y="202" width="270" height="54" rx="5" fill="#0d151d" stroke="#e8a02f" stroke-width="1.1"/><circle cx="925" cy="219" r="4" fill="#e8a02f"/><text x="936.0" y="223.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Opcenter</text><text x="936.0" y="237.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">MES · mill dwell</text><text x="1166.0" y="223.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="11" fill="#e8a02f" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">19%</text><path d="M1145,243 A11 11 0 0 1 1167,243" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="243" x2="1154.7" y2="234.1" stroke="#e8a02f" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="247.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution</text>
+<rect x="910" y="268" width="270" height="54" rx="5" fill="#0d151d" stroke="#3fc9c0" stroke-width="1.1"/><circle cx="925" cy="285" r="4" fill="#3fc9c0"/><text x="936.0" y="289.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="12" fill="#eaf1f7" text-anchor="start" letter-spacing="0" font-weight="600" opacity="1">Epsilon3</text><text x="936.0" y="303.0" font-family="ui-monospace,Menlo,monospace" font-size="8" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">procedures · requal</text><text x="1166.0" y="289.0" font-family="'Space Grotesk',system-ui,sans-serif" font-size="11" fill="#3fc9c0" text-anchor="end" letter-spacing="0" font-weight="700" opacity="1">8%</text><path d="M1145,309 A11 11 0 0 1 1167,309" fill="none" stroke="#2a3b49" stroke-width="2"/><line x1="1156" y1="309" x2="1148.6" y2="303.9" stroke="#3fc9c0" stroke-width="1.6" stroke-linecap="round"/><text x="925.0" y="313.0" font-family="ui-monospace,Menlo,monospace" font-size="7" fill="#7d8b98" text-anchor="start" letter-spacing="0" font-weight="400" opacity="1">attribution</text>
+<g><circle cx="590" cy="210" r="92" fill="#05080c"/><circle cx="590" cy="210" r="92" fill="none" stroke="#26333e" stroke-width="1.5"/><line x1="679.0" y1="210.0" x2="670.0" y2="210.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="678.7" y1="217.8" x2="674.7" y2="217.4" stroke="#33424e" stroke-width="1"/><line x1="677.6" y1="225.5" x2="673.7" y2="224.8" stroke="#33424e" stroke-width="1"/><line x1="676.0" y1="233.0" x2="672.1" y2="232.0" stroke="#33424e" stroke-width="1"/><line x1="673.6" y1="240.4" x2="669.9" y2="239.1" stroke="#33424e" stroke-width="1"/><line x1="670.7" y1="247.6" x2="667.0" y2="245.9" stroke="#33424e" stroke-width="1"/><line x1="667.1" y1="254.5" x2="659.3" y2="250.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="662.9" y1="261.0" x2="659.6" y2="258.8" stroke="#33424e" stroke-width="1"/><line x1="658.2" y1="267.2" x2="655.1" y2="264.6" stroke="#33424e" stroke-width="1"/><line x1="652.9" y1="272.9" x2="650.1" y2="270.1" stroke="#33424e" stroke-width="1"/><line x1="647.2" y1="278.2" x2="644.6" y2="275.1" stroke="#33424e" stroke-width="1"/><line x1="641.0" y1="282.9" x2="638.8" y2="279.6" stroke="#33424e" stroke-width="1"/><line x1="634.5" y1="287.1" x2="630.0" y2="279.3" stroke="#5a6b78" stroke-width="1.4"/><line x1="627.6" y1="290.7" x2="625.9" y2="287.0" stroke="#33424e" stroke-width="1"/><line x1="620.4" y1="293.6" x2="619.1" y2="289.9" stroke="#33424e" stroke-width="1"/><line x1="613.0" y1="296.0" x2="612.0" y2="292.1" stroke="#33424e" stroke-width="1"/><line x1="605.5" y1="297.6" x2="604.8" y2="293.7" stroke="#33424e" stroke-width="1"/><line x1="597.8" y1="298.7" x2="597.4" y2="294.7" stroke="#33424e" stroke-width="1"/><line x1="590.0" y1="299.0" x2="590.0" y2="290.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="582.2" y1="298.7" x2="582.6" y2="294.7" stroke="#33424e" stroke-width="1"/><line x1="574.5" y1="297.6" x2="575.2" y2="293.7" stroke="#33424e" stroke-width="1"/><line x1="567.0" y1="296.0" x2="568.0" y2="292.1" stroke="#33424e" stroke-width="1"/><line x1="559.6" y1="293.6" x2="560.9" y2="289.9" stroke="#33424e" stroke-width="1"/><line x1="552.4" y1="290.7" x2="554.1" y2="287.0" stroke="#33424e" stroke-width="1"/><line x1="545.5" y1="287.1" x2="550.0" y2="279.3" stroke="#5a6b78" stroke-width="1.4"/><line x1="539.0" y1="282.9" x2="541.2" y2="279.6" stroke="#33424e" stroke-width="1"/><line x1="532.8" y1="278.2" x2="535.4" y2="275.1" stroke="#33424e" stroke-width="1"/><line x1="527.1" y1="272.9" x2="529.9" y2="270.1" stroke="#33424e" stroke-width="1"/><line x1="521.8" y1="267.2" x2="524.9" y2="264.6" stroke="#33424e" stroke-width="1"/><line x1="517.1" y1="261.0" x2="520.4" y2="258.8" stroke="#33424e" stroke-width="1"/><line x1="512.9" y1="254.5" x2="520.7" y2="250.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="509.3" y1="247.6" x2="513.0" y2="245.9" stroke="#33424e" stroke-width="1"/><line x1="506.4" y1="240.4" x2="510.1" y2="239.1" stroke="#33424e" stroke-width="1"/><line x1="504.0" y1="233.0" x2="507.9" y2="232.0" stroke="#33424e" stroke-width="1"/><line x1="502.4" y1="225.5" x2="506.3" y2="224.8" stroke="#33424e" stroke-width="1"/><line x1="501.3" y1="217.8" x2="505.3" y2="217.4" stroke="#33424e" stroke-width="1"/><line x1="501.0" y1="210.0" x2="510.0" y2="210.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="501.3" y1="202.2" x2="505.3" y2="202.6" stroke="#33424e" stroke-width="1"/><line x1="502.4" y1="194.5" x2="506.3" y2="195.2" stroke="#33424e" stroke-width="1"/><line x1="504.0" y1="187.0" x2="507.9" y2="188.0" stroke="#33424e" stroke-width="1"/><line x1="506.4" y1="179.6" x2="510.1" y2="180.9" stroke="#33424e" stroke-width="1"/><line x1="509.3" y1="172.4" x2="513.0" y2="174.1" stroke="#33424e" stroke-width="1"/><line x1="512.9" y1="165.5" x2="520.7" y2="170.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="517.1" y1="159.0" x2="520.4" y2="161.2" stroke="#33424e" stroke-width="1"/><line x1="521.8" y1="152.8" x2="524.9" y2="155.4" stroke="#33424e" stroke-width="1"/><line x1="527.1" y1="147.1" x2="529.9" y2="149.9" stroke="#33424e" stroke-width="1"/><line x1="532.8" y1="141.8" x2="535.4" y2="144.9" stroke="#33424e" stroke-width="1"/><line x1="539.0" y1="137.1" x2="541.2" y2="140.4" stroke="#33424e" stroke-width="1"/><line x1="545.5" y1="132.9" x2="550.0" y2="140.7" stroke="#5a6b78" stroke-width="1.4"/><line x1="552.4" y1="129.3" x2="554.1" y2="133.0" stroke="#33424e" stroke-width="1"/><line x1="559.6" y1="126.4" x2="560.9" y2="130.1" stroke="#33424e" stroke-width="1"/><line x1="567.0" y1="124.0" x2="568.0" y2="127.9" stroke="#33424e" stroke-width="1"/><line x1="574.5" y1="122.4" x2="575.2" y2="126.3" stroke="#33424e" stroke-width="1"/><line x1="582.2" y1="121.3" x2="582.6" y2="125.3" stroke="#33424e" stroke-width="1"/><line x1="590.0" y1="121.0" x2="590.0" y2="130.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="597.8" y1="121.3" x2="597.4" y2="125.3" stroke="#33424e" stroke-width="1"/><line x1="605.5" y1="122.4" x2="604.8" y2="126.3" stroke="#33424e" stroke-width="1"/><line x1="613.0" y1="124.0" x2="612.0" y2="127.9" stroke="#33424e" stroke-width="1"/><line x1="620.4" y1="126.4" x2="619.1" y2="130.1" stroke="#33424e" stroke-width="1"/><line x1="627.6" y1="129.3" x2="625.9" y2="133.0" stroke="#33424e" stroke-width="1"/><line x1="634.5" y1="132.9" x2="630.0" y2="140.7" stroke="#5a6b78" stroke-width="1.4"/><line x1="641.0" y1="137.1" x2="638.8" y2="140.4" stroke="#33424e" stroke-width="1"/><line x1="647.2" y1="141.8" x2="644.6" y2="144.9" stroke="#33424e" stroke-width="1"/><line x1="652.9" y1="147.1" x2="650.1" y2="149.9" stroke="#33424e" stroke-width="1"/><line x1="658.2" y1="152.8" x2="655.1" y2="155.4" stroke="#33424e" stroke-width="1"/><line x1="662.9" y1="159.0" x2="659.6" y2="161.2" stroke="#33424e" stroke-width="1"/><line x1="667.1" y1="165.5" x2="659.3" y2="170.0" stroke="#5a6b78" stroke-width="1.4"/><line x1="670.7" y1="172.4" x2="667.0" y2="174.1" stroke="#33424e" stroke-width="1"/><line x1="673.6" y1="179.6" x2="669.9" y2="180.9" stroke="#33424e" stroke-width="1"/><line x1="676.0" y1="187.0" x2="672.1" y2="188.0" stroke="#33424e" stroke-width="1"/><line x1="677.6" y1="194.5" x2="673.7" y2="195.2" stroke="#33424e" stroke-width="1"/><line x1="678.7" y1="202.2" x2="674.7" y2="202.6" stroke="#33424e" stroke-width="1"/><path d="M590.0,127.0 A83,83 0 1 1 526.0,262.9" fill="none" stroke="#1a0d05" stroke-width="9" stroke-linecap="round" opacity="0.85"/><path d="M590.0,127.0 A83,83 0 1 1 526.0,262.9" fill="none" stroke="#ff6a3d" stroke-width="6" stroke-linecap="round"/><circle cx="590" cy="210" r="52" fill="none" stroke="#182430" stroke-width="1"/></g>
+</svg>
+                <div class="pcontent">
+                  <p class="plabel">Interactive prototype</p>
+                  <p class="ptitle">The orchestrator interface &mdash; factory floor &amp; advisory dashboard</p>
+                  <button class="btn-primary" type="button"><span class="pl">&#9654;</span> Launch interactive demo</button>
+                  <p class="phint">live 3D floor &middot; ranked advisory &middot; planned-vs-inferred schedule</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE PROBLEM -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The problem</p>
+        <div class="prose">
+          <p>
+            Material planning software &mdash; MRP, and the ERP it lives in &mdash; was built for production
+            that repeats. A refrigerator line runs the same design for years: the master data is stable because
+            reality is stable, so what the system believes and what is true on the floor stay close together.
+          </p>
+          <p>
+            A rocket line is the opposite. The design is still maturing while units are being built &mdash;
+            change orders keep landing, suppliers are still climbing their learning curve, processes are still
+            being qualified, unit counts are low. Under that churn the master data drifts out from under reality
+            constantly. <strong>Decoupling between belief and truth isn&rsquo;t an edge case on this kind of line
+            &mdash; it&rsquo;s the normal condition.</strong>
+          </p>
+          <p>
+            And it is structurally hard to see. Each system is internally consistent with its own data, so
+            nothing looks wrong from inside any one screen. The failure only becomes legible by reading several
+            systems <em>together, over time</em> &mdash; which is exactly what no single planning screen is built
+            to do. Not any one wrong value, but a disturbance that propagates across systems and surfaces far
+            from where it started.
+          </p>
+          <p>
+            The system is positioned as an <strong>advisory layer</strong> over the existing planning stack. It
+            computes nothing the planners rely on and has no authority over the schedule. It reads, and it flags
+            &mdash; a starting point for a human to investigate, not a decision.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE APPROACH -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The approach</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">Two very different outputs from one model.</h2>
+          <p>
+            A single trained transformer reads the four systems as one multivariate sequence per stage &mdash;
+            the dense operational streams (receipt timing and variance from Dynamics 365; dwell, cycle time and
+            WIP from Opcenter) interleaved with the sparse discrete events (ECO releases from Teamcenter;
+            requalifications from Epsilon3). From that one model come two outputs, useful in completely different
+            ways &mdash; one looking forward, one looking backward.
+          </p>
+
+          <div class="plot">
+            <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Schematic: four planning systems each within its own acceptable window, read together as one propagating signature into a single advisory, with cost surfacing at a downstream cell that still reads nominal."><rect x="0" y="0" width="800" height="360" fill="#0F1115"/><text x="40" y="40" fill="#C7C7CC" font-family="-apple-system, sans-serif" font-size="14" font-weight="600">Four systems within limits &#8212; one advisory</text><line x1="60" y1="92" x2="372" y2="92" stroke="#FF6B7A" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.85"/><text x="378" y="96" fill="#FF6B7A" font-family="ui-monospace, monospace" font-size="10">each system’s own limit</text><rect x="75" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/><rect x="75" y="150" width="30" height="140" rx="4" fill="#FFA94D" opacity="0.55"/><text x="90" y="308" fill="#98989D" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Teamcenter</text><rect x="160" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/><rect x="160" y="162" width="30" height="128" rx="4" fill="#FFA94D" opacity="0.55"/><text x="175" y="308" fill="#98989D" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Dynamics</text><rect x="245" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/><rect x="245" y="150" width="30" height="140" rx="4" fill="#FFA94D" opacity="0.55"/><text x="260" y="308" fill="#98989D" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Opcenter</text><rect x="330" y="72" width="30" height="218" rx="4" fill="#1D1F23" stroke="rgba(255,255,255,0.08)"/><rect x="330" y="176" width="30" height="114" rx="4" fill="#FFA94D" opacity="0.55"/><text x="345" y="308" fill="#98989D" font-family="ui-monospace, monospace" font-size="9.5" text-anchor="middle">Epsilon3</text><path d="M372 180 C440 180 470 200 512 200" stroke="#e07a3a" stroke-width="1.6" stroke-dasharray="6 6" fill="none" opacity="0.9"/><polygon points="512,200 502,194 503,206" fill="#e07a3a"/><text x="404" y="168" fill="#98989D" font-family="ui-monospace, monospace" font-size="9.5">read together, in sequence</text><circle cx="600" cy="180" r="52" fill="#05080c"/><line x1="650.0" y1="180.0" x2="644.0" y2="180.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="649.8" y1="184.4" x2="646.8" y2="184.1" stroke="#33424e" stroke-width="0.7"/><line x1="649.2" y1="188.7" x2="646.3" y2="188.2" stroke="#33424e" stroke-width="0.7"/><line x1="648.3" y1="192.9" x2="645.4" y2="192.2" stroke="#33424e" stroke-width="0.7"/><line x1="647.0" y1="197.1" x2="644.2" y2="196.1" stroke="#33424e" stroke-width="0.7"/><line x1="645.3" y1="201.1" x2="642.6" y2="199.9" stroke="#33424e" stroke-width="0.7"/><line x1="643.3" y1="205.0" x2="638.1" y2="202.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="641.0" y1="208.7" x2="638.5" y2="207.0" stroke="#33424e" stroke-width="0.7"/><line x1="638.3" y1="212.1" x2="636.0" y2="210.2" stroke="#33424e" stroke-width="0.7"/><line x1="635.4" y1="215.4" x2="633.2" y2="213.2" stroke="#33424e" stroke-width="0.7"/><line x1="632.1" y1="218.3" x2="630.2" y2="216.0" stroke="#33424e" stroke-width="0.7"/><line x1="628.7" y1="221.0" x2="627.0" y2="218.5" stroke="#33424e" stroke-width="0.7"/><line x1="625.0" y1="223.3" x2="622.0" y2="218.1" stroke="#5a6b78" stroke-width="1.1"/><line x1="621.1" y1="225.3" x2="619.9" y2="222.6" stroke="#33424e" stroke-width="0.7"/><line x1="617.1" y1="227.0" x2="616.1" y2="224.2" stroke="#33424e" stroke-width="0.7"/><line x1="612.9" y1="228.3" x2="612.2" y2="225.4" stroke="#33424e" stroke-width="0.7"/><line x1="608.7" y1="229.2" x2="608.2" y2="226.3" stroke="#33424e" stroke-width="0.7"/><line x1="604.4" y1="229.8" x2="604.1" y2="226.8" stroke="#33424e" stroke-width="0.7"/><line x1="600.0" y1="230.0" x2="600.0" y2="224.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="595.6" y1="229.8" x2="595.9" y2="226.8" stroke="#33424e" stroke-width="0.7"/><line x1="591.3" y1="229.2" x2="591.8" y2="226.3" stroke="#33424e" stroke-width="0.7"/><line x1="587.1" y1="228.3" x2="587.8" y2="225.4" stroke="#33424e" stroke-width="0.7"/><line x1="582.9" y1="227.0" x2="583.9" y2="224.2" stroke="#33424e" stroke-width="0.7"/><line x1="578.9" y1="225.3" x2="580.1" y2="222.6" stroke="#33424e" stroke-width="0.7"/><line x1="575.0" y1="223.3" x2="578.0" y2="218.1" stroke="#5a6b78" stroke-width="1.1"/><line x1="571.3" y1="221.0" x2="573.0" y2="218.5" stroke="#33424e" stroke-width="0.7"/><line x1="567.9" y1="218.3" x2="569.8" y2="216.0" stroke="#33424e" stroke-width="0.7"/><line x1="564.6" y1="215.4" x2="566.8" y2="213.2" stroke="#33424e" stroke-width="0.7"/><line x1="561.7" y1="212.1" x2="564.0" y2="210.2" stroke="#33424e" stroke-width="0.7"/><line x1="559.0" y1="208.7" x2="561.5" y2="207.0" stroke="#33424e" stroke-width="0.7"/><line x1="556.7" y1="205.0" x2="561.9" y2="202.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="554.7" y1="201.1" x2="557.4" y2="199.9" stroke="#33424e" stroke-width="0.7"/><line x1="553.0" y1="197.1" x2="555.8" y2="196.1" stroke="#33424e" stroke-width="0.7"/><line x1="551.7" y1="192.9" x2="554.6" y2="192.2" stroke="#33424e" stroke-width="0.7"/><line x1="550.8" y1="188.7" x2="553.7" y2="188.2" stroke="#33424e" stroke-width="0.7"/><line x1="550.2" y1="184.4" x2="553.2" y2="184.1" stroke="#33424e" stroke-width="0.7"/><line x1="550.0" y1="180.0" x2="556.0" y2="180.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="550.2" y1="175.6" x2="553.2" y2="175.9" stroke="#33424e" stroke-width="0.7"/><line x1="550.8" y1="171.3" x2="553.7" y2="171.8" stroke="#33424e" stroke-width="0.7"/><line x1="551.7" y1="167.1" x2="554.6" y2="167.8" stroke="#33424e" stroke-width="0.7"/><line x1="553.0" y1="162.9" x2="555.8" y2="163.9" stroke="#33424e" stroke-width="0.7"/><line x1="554.7" y1="158.9" x2="557.4" y2="160.1" stroke="#33424e" stroke-width="0.7"/><line x1="556.7" y1="155.0" x2="561.9" y2="158.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="559.0" y1="151.3" x2="561.5" y2="153.0" stroke="#33424e" stroke-width="0.7"/><line x1="561.7" y1="147.9" x2="564.0" y2="149.8" stroke="#33424e" stroke-width="0.7"/><line x1="564.6" y1="144.6" x2="566.8" y2="146.8" stroke="#33424e" stroke-width="0.7"/><line x1="567.9" y1="141.7" x2="569.8" y2="144.0" stroke="#33424e" stroke-width="0.7"/><line x1="571.3" y1="139.0" x2="573.0" y2="141.5" stroke="#33424e" stroke-width="0.7"/><line x1="575.0" y1="136.7" x2="578.0" y2="141.9" stroke="#5a6b78" stroke-width="1.1"/><line x1="578.9" y1="134.7" x2="580.1" y2="137.4" stroke="#33424e" stroke-width="0.7"/><line x1="582.9" y1="133.0" x2="583.9" y2="135.8" stroke="#33424e" stroke-width="0.7"/><line x1="587.1" y1="131.7" x2="587.8" y2="134.6" stroke="#33424e" stroke-width="0.7"/><line x1="591.3" y1="130.8" x2="591.8" y2="133.7" stroke="#33424e" stroke-width="0.7"/><line x1="595.6" y1="130.2" x2="595.9" y2="133.2" stroke="#33424e" stroke-width="0.7"/><line x1="600.0" y1="130.0" x2="600.0" y2="136.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="604.4" y1="130.2" x2="604.1" y2="133.2" stroke="#33424e" stroke-width="0.7"/><line x1="608.7" y1="130.8" x2="608.2" y2="133.7" stroke="#33424e" stroke-width="0.7"/><line x1="612.9" y1="131.7" x2="612.2" y2="134.6" stroke="#33424e" stroke-width="0.7"/><line x1="617.1" y1="133.0" x2="616.1" y2="135.8" stroke="#33424e" stroke-width="0.7"/><line x1="621.1" y1="134.7" x2="619.9" y2="137.4" stroke="#33424e" stroke-width="0.7"/><line x1="625.0" y1="136.7" x2="622.0" y2="141.9" stroke="#5a6b78" stroke-width="1.1"/><line x1="628.7" y1="139.0" x2="627.0" y2="141.5" stroke="#33424e" stroke-width="0.7"/><line x1="632.1" y1="141.7" x2="630.2" y2="144.0" stroke="#33424e" stroke-width="0.7"/><line x1="635.4" y1="144.6" x2="633.2" y2="146.8" stroke="#33424e" stroke-width="0.7"/><line x1="638.3" y1="147.9" x2="636.0" y2="149.8" stroke="#33424e" stroke-width="0.7"/><line x1="641.0" y1="151.3" x2="638.5" y2="153.0" stroke="#33424e" stroke-width="0.7"/><line x1="643.3" y1="155.0" x2="638.1" y2="158.0" stroke="#5a6b78" stroke-width="1.1"/><line x1="645.3" y1="158.9" x2="642.6" y2="160.1" stroke="#33424e" stroke-width="0.7"/><line x1="647.0" y1="162.9" x2="644.2" y2="163.9" stroke="#33424e" stroke-width="0.7"/><line x1="648.3" y1="167.1" x2="645.4" y2="167.8" stroke="#33424e" stroke-width="0.7"/><line x1="649.2" y1="171.3" x2="646.3" y2="171.8" stroke="#33424e" stroke-width="0.7"/><line x1="649.8" y1="175.6" x2="646.8" y2="175.9" stroke="#33424e" stroke-width="0.7"/><path d="M600.0,134.0 A46,46 0 1 1 564.6,209.3" fill="none" stroke="#1a0d05" stroke-width="7" stroke-linecap="round" opacity="0.85"/><path d="M600.0,134.0 A46,46 0 1 1 564.6,209.3" fill="none" stroke="#e07a3a" stroke-width="4.5" stroke-linecap="round"/><circle cx="600" cy="180" r="30" fill="none" stroke="#182430" stroke-width="1"/><text x="600" y="161" fill="#c9d6e2" font-family="ui-monospace, monospace" font-size="6" letter-spacing="1.5" text-anchor="middle">INFERENCE</text><text x="600" y="183" fill="#eef4fa" font-family="-apple-system, sans-serif" font-size="15" font-weight="700" text-anchor="middle">3–4 wk</text><text x="600" y="207" fill="#ff8a4d" font-family="-apple-system, sans-serif" font-size="10" font-weight="700" text-anchor="middle">64%</text><circle cx="710" cy="286" r="15" fill="rgba(67,176,166,0.18)" stroke="#43b0a6" stroke-width="1.4"/><circle cx="710" cy="286" r="22" fill="none" stroke="#e07a3a" stroke-width="1.2" stroke-dasharray="3 3"/><path d="M600 226 C640 270 675 282 693 285" stroke="#e07a3a" stroke-width="1.2" stroke-dasharray="3 5" fill="none" opacity="0.7"/><text x="710" y="322" fill="#43b0a6" font-family="ui-monospace, monospace" font-size="9" text-anchor="middle">WIP surfaces</text><text x="710" y="334" fill="#98989D" font-family="ui-monospace, monospace" font-size="8" text-anchor="middle">cell reads nominal</text></svg>
+            <p class="plot-caption">Every system sits within its own acceptable window; nothing crosses a limit. Read together and in sequence, the same signature that drives the slip prediction also points at work-in-process building at a downstream cell that still reads nominal &mdash; cost surfacing where the cause isn&rsquo;t.</p>
+          </div>
+
+          <h3>A forward prediction &mdash; the learned part</h3>
+          <p>
+            Trained on the history of past stages, each labeled by what actually happened, the model learns that
+            a particular <em>joint early signature</em> precedes a schedule slip: churn up, variance widening,
+            dwell creeping, all at once, none alarming alone. The output is an early flag &mdash; <em>this stage
+            is developing the shape of stages that later slipped.</em> Not demand forecasting; a schedule slip
+            forecast from the factory&rsquo;s own internal, cross-system operating signals.
+          </p>
+
+          <h3>A backward explanation &mdash; a by-product of the same model</h3>
+          <p>
+            Ask the model what its prediction rests on, using standard input attribution (SHAP and gradient
+            methods &mdash; not raw attention weights). The attribution exposes the ECO-churn &rarr;
+            supplier-variance &rarr; mill-dwell chain. No second model, no new machinery. And the same upstream
+            signature driving the <em>slip</em> is the likely driver of the <em>cost</em> problem downstream &mdash;
+            the mystery WIP at the healthy-looking cell. Two problems owned by two departments, surfaced as one
+            root cause. That is the untangle.
+          </p>
+
+          <h3>A flag for human investigation &mdash; not an automated root-cause finder</h3>
+          <p>
+            The attribution reports <strong>importance, not causation.</strong> Run continuously, the model
+            scores each stage, computes attributions on elevated predictions, requires a corroborating discrete
+            event (an actual ECO release, an actual requal) before a flag reaches the queue, and emits a ranked
+            queue of hypotheses: <em>here is the risk, here is the upstream signature that appears to drive it,
+            go look.</em> It is judged by its hit rate, not by whether any single flag is true.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DESIGN DECISIONS -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Design decisions</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">What I considered, and why I rejected it.</h2>
+
+          <h3>Not &ldquo;which drift is the AI,&rdquo; but &ldquo;which work is learned.&rdquo;</h3>
+          <p>
+            Forcing an &ldquo;AI&rdquo; label onto every part reads as overclaiming, because some of the work is
+            deterministic &mdash; aligning a predicted slip with a co-moving cost effect is bookkeeping, not a
+            model. The honest cut is by <em>kind of work</em>: the transformer does the learned prediction and
+            its attribution; deterministic logic does the corroboration and the cost alignment. Keeping that line
+            visible is what makes the whole thing credible.
+          </p>
+
+          <h3>Attribution, not &ldquo;mechanistic interpretability.&rdquo;</h3>
+          <p>
+            Mechanistic interpretability reverse-engineers a network&rsquo;s internal circuits &mdash; a frontier
+            area, and not what this does. This is <strong>attribution</strong>: which inputs drove a given output.
+            It is mature and deployed, and it is stronger for not pretending to be something newer.
+          </p>
+
+          <h3>Prediction and explanation from one model, not two systems.</h3>
+          <p>
+            The explanation could have been a separate causal-inference system. It isn&rsquo;t, deliberately:
+            attribution is a by-product of the prediction, so one trained model yields both outputs &mdash; and
+            keeps them honestly tied to the same learned signature rather than asserting a connection between two
+            independent models.
+          </p>
+
+          <h3>A composed advisory surface, not a configurable tool.</h3>
+          <p>
+            The interface makes the call about what to show and how to rank it, rather than handing the user
+            knobs to arrange it. The value is that the one view which makes the hidden thing legible has already
+            been composed &mdash; decisive presentation, humble verdict.
+          </p>
+
+          <h3 style="margin-top: 40px;">Five commitments</h3>
+          <ul>
+            <li><strong>Beat the baseline it claims to beat.</strong> Catch cross-system, sub-threshold disturbances the per-system dashboards miss &mdash; on the same data.</li>
+            <li><strong>The data stays disjoint.</strong> Train / validation / calibration / test generated separately and kept apart; the test split touched once; labels never shown at inference.</li>
+            <li><strong>Attribution indicates importance, not cause</strong> &mdash; and the output says so.</li>
+            <li><strong>The system advises; it does not act.</strong> The existing planning stack keeps all authority over the schedule.</li>
+            <li><strong>The advisory must be legible &mdash; and honest.</strong> An output a human cannot read, or reads as a harder claim than it is, is worse than none.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE DATA -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Data &amp; training</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">The churn that makes this painful is the same churn that makes it learnable.</h2>
+          <p>
+            The model needs history it can learn from: past stages, each represented as its full multivariate
+            event history across the four systems, each labeled by what actually happened &mdash; did it slip, by
+            how much, what downstream cost and WIP anomalies came with it. A stable line produces almost no
+            decoupling events, so there is nothing to learn from. A line where design and process are constantly
+            moving generates drift as its normal condition &mdash; which means it also generates the labeled
+            examples the model trains on.
+          </p>
+          <p>
+            The honest gating risk, stated plainly: low unit counts mean few labeled slips. A realistic build
+            pretrains on the abundant operational sequence data the systems already emit and fine-tunes on the
+            scarce labeled outcomes. And earliness is only worth something if false positives are rare &mdash;
+            <strong>precision on a data-poor line is the genuine engineering challenge here, and any version of
+            this that hides that is selling something.</strong>
+          </p>
+          <p>
+            Because real training data of this kind isn&rsquo;t available to a prototype, the demonstrable version
+            runs on a <strong>synthetic scenario</strong>: a small model of the four systems&rsquo; streams with a
+            disturbance injected at the root, so the propagation and its downstream surfacing emerge through the
+            model&rsquo;s own couplings rather than being drawn in by hand. The seam is kept clean &mdash;
+            synthetic streams and a real feed present the same interface.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE INTERFACE -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">The interface</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 20px;">An advisory is only useful if a human can act on it &mdash; and trust it.</h2>
+          <p>
+            This system exists because a disturbance spread across four systems is unreadable to a per-system
+            monitor. Hand a person four systems and a score and they face the same problem. The interface exists
+            to do for the human what the model did for the data &mdash; and to keep the honest seams on the
+            surface, not buried.
+          </p>
+        </div>
+        <div class="ui-beats">
+          <div class="ui-beat">
+            <p class="bn">01</p>
+            <h3>Two registers, stacked</h3>
+            <p>The physical plant on top &mdash; ground truth &mdash; the ranked analysis below. Truth and interpretation, in one scroll.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">02</p>
+            <h3>Advisory, not verdict</h3>
+            <p>A calibrated certainty carried as an advisory, never a hard call &mdash; the tone reflects a system with no authority over the schedule.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">03</p>
+            <h3>Systems, weighted</h3>
+            <p>The four systems shown as tiles scaled by how much each drove the flag &mdash; it weighed everything; these are what mattered.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">04</p>
+            <h3>Implicated zones light on the floor</h3>
+            <p>In two roles: the elements the inference reads <em>from</em>, and the element it infers is <em>affected</em> &mdash; drawn dashed, inferred rather than observed.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">05</p>
+            <h3>A ranked queue, in plain language</h3>
+            <p>Each flagged event as an advisory, a description in the honest correlational voice, and a recommended place to look &mdash; not an instruction to reschedule.</p>
+          </div>
+          <div class="ui-beat">
+            <p class="bn">06</p>
+            <h3>The contrast, shown</h3>
+            <p>Every system reads nominal while the advisory flags the combined, propagating signature &mdash; the thesis, demonstrated rather than asserted.</p>
+          </div>
+        </div>
+        <a class="btn-primary" href="mro_integrated_v5.html" target="_blank" rel="noopener"><span class="pl">&#9654;</span> Launch interactive demo</a>
+      </div>
+    </section>
+
+    <!-- ROADMAP -->
+    <section class="section">
+      <div class="container-narrow">
+        <p class="section-eyebrow">Roadmap &amp; open problems</p>
+        <div class="prose">
+          <h2 style="margin-bottom: 28px;">An idea worth building the next rung of.</h2>
+          <ul>
+            <li><strong>This design:</strong> four systems read as one sequence, a learned slip prediction, attribution as a hypothesis queue, corroboration by discrete events, on a synthetic scenario, advisory &mdash; through an interactive floor-and-dashboard interface.</li>
+            <li><strong>Next:</strong> harden against a richer library of disturbances, and tune the flag threshold against a real human-cost function &mdash; the point where an investigated flag pays off often enough to stay trusted.</li>
+            <li><strong>Then:</strong> learn the influence topology <em>between</em> systems, so a flag traces a path through the stack &mdash; churn to supplier to cell to downstream WIP &mdash; rather than a bag of weighted inputs.</li>
+          </ul>
+          <p>The honest unknowns sit in the same territory:</p>
+          <ul>
+            <li><strong>Correlational, not causal.</strong> Attribution points at what the model keyed on; turning that into a real cause is a human step.</li>
+            <li><strong>Precision on sparse labels.</strong> The whole value of earliness depends on a low false-positive rate, hardest to achieve on exactly the data-poor line where it matters most.</li>
+            <li><strong>Where trust sits.</strong> The advisory placement isn&rsquo;t a limitation to engineer away &mdash; it reflects where trust in these methods actually stands.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section class="stack-section">
+      <div class="container">
+        <div class="stack-grid">
+          <div class="stack-meta">
+            <p class="section-eyebrow" style="margin-bottom: 14px;">Stack</p>
+            <h2>What&rsquo;s under the hood.</h2>
+            <p>
+              A transformer reads four planning systems as one multivariate sequence &mdash; dense operational
+              streams interleaved with sparse discrete events &mdash; and produces a calibrated slip prediction.
+              Input attribution over that same model surfaces the upstream signature the prediction rests on,
+              filtered by corroborating discrete events into a ranked queue for human investigation. A synthetic
+              generator supplies the streams and injects the root disturbance. A Three.js front end maps the
+              plant, the systems, and the advisory.
+            </p>
+          </div>
+          <div class="stack-categories">
+            <div>
+              <p class="stack-cat-label">Model</p>
+              <ul class="stack-list">
+                <li>PyTorch &middot; attention over system streams</li>
+                <li>SHAP / gradient attribution</li>
+                <li>Calibrated confidence</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Data</p>
+              <ul class="stack-list">
+                <li>Synthetic four-system generator</li>
+                <li>Root disturbance injected</li>
+                <li>Propagation emerges through couplings</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Sources modeled</p>
+              <ul class="stack-list">
+                <li>Teamcenter (PLM) &middot; Dynamics 365 (ERP/MRP)</li>
+                <li>Opcenter (MES) &middot; Epsilon3 (procedures)</li>
+                <li>Dense streams + sparse events</li>
+              </ul>
+            </div>
+            <div>
+              <p class="stack-cat-label">Visualization</p>
+              <ul class="stack-list">
+                <li>Three.js factory floor</li>
+                <li>Advisory HUD &middot; attribution-weighted tiles</li>
+                <li>Ranked advisory &middot; planned-vs-inferred schedule</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARTIFACTS -->
+    <section class="section">
+      <div class="container">
+        <p class="section-eyebrow">Artifacts</p>
+        <h2 style="max-width: 18ch;">The work, in public.</h2>
+        <div class="links">
+          <a class="link-card" href="mro_integrated_v5.html">
+            <p class="link-card-label">Demo</p>
+            <p class="link-card-title">Interactive demonstration</p>
+            <p class="link-card-meta">Live 3D factory floor, ranked advisory dashboard, planned-vs-inferred schedule</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="mro_howitworks_book.html">
+            <p class="link-card-label">Textbook</p>
+            <p class="link-card-title">How It Works</p>
+            <p class="link-card-meta">Chapter-by-chapter engineering walkthrough &mdash; the full technical story</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/manufacturing-reality-orchestrator" target="_blank" rel="noopener">
+            <p class="link-card-label">Code</p>
+            <p class="link-card-title">GitHub repository</p>
+            <p class="link-card-meta">Source &mdash; the transformer, attribution, corroboration, and the four-system generator</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+          <a class="link-card" href="https://github.com/williamcs50/manufacturing-reality-orchestrator/blob/main/docs/design-rationale.md" target="_blank" rel="noopener">
+            <p class="link-card-label">Writeup</p>
+            <p class="link-card-title">Design rationale</p>
+            <p class="link-card-meta">Decisions considered and rejected, in narrative form</p>
+            <span class="arrow">&rsaquo;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREV / NEXT -->
+    <div class="container">
+      <nav class="pager">
+        <a class="pager-link prev" href="pong.html">
+          <p class="pager-label">&lsaquo; Previous case study</p>
+          <p class="pager-title">Pong from Pixels</p>
+        </a>
+        <a class="pager-link next" href="orchestrator-case-study.html">
+          <p class="pager-label">Next case study &rsaquo;</p>
+          <p class="pager-title">Rocket Engine Health Orchestrator</p>
+        </a>
+      </nav>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>&copy; 2026 William Opyrchal &middot; <a href="index.html" style="color: var(--muted);">williamopyrchal.com</a></span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var frame = document.getElementById('demoFrame');
+      if (!frame) return;
+      var stage  = frame.querySelector('.demo-stage');
+      var scaler = frame.querySelector('.demo-scaler');
+      var poster = frame.querySelector('.demo-poster');
+      var btn    = poster.querySelector('.btn-primary');
+      var LW = 1280, LH = 720;
+      function fit() {
+        var s = stage.clientWidth / LW;
+        stage.style.height = (LH * s) + 'px';
+        scaler.style.transform = 'scale(' + s + ')';
+      }
+      fit();
+      window.addEventListener('resize', fit);
+
+      function mount() {
+        if (scaler.querySelector('iframe')) return;
+        var ifr = document.createElement('iframe');
+        ifr.src = 'mro_integrated_v5.html';
+        ifr.title = 'Manufacturing Reality Orchestrator \u2014 interactive demo';
+        ifr.setAttribute('allow', 'fullscreen');
+        scaler.appendChild(ifr);
+        frame.classList.add('loaded');
+        fit();
+      }
+      function unmount() {
+        var ifr = scaler.querySelector('iframe');
+        if (ifr) scaler.removeChild(ifr);
+        frame.classList.remove('loaded');
+      }
+
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (reduce || !('IntersectionObserver' in window)) {
+        // Reduced motion (or no observer support): static poster, load on demand.
+        poster.addEventListener('click', mount);
+        poster.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mount(); }
+        });
+      } else {
+        // Automatic: mount when the frame is in view, unmount when scrolled away
+        // so the render loop doesn't run while reading the rest of the page.
+        if (btn) btn.style.display = 'none';
+        poster.style.cursor = 'default';
+        poster.removeAttribute('role');
+        poster.removeAttribute('tabindex');
+        poster.setAttribute('aria-label', 'Interactive demo loads automatically when in view');
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) mount(); else unmount();
+          });
+        }, { rootMargin: '250px 0px' });
+        io.observe(frame);
+      }
+    })();
+  </script>
+</body>
+</html>
