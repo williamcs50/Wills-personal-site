@@ -241,8 +241,8 @@ html,body{margin:0;background:var(--black);color:var(--ink);font-family:var(--mo
   <div class="sec-lbl">RESOURCE IMPACT <span class="sub">— zones the inferred event is expected to affect · lit on the floor above (dashed = inferred, not observed)</span></div>
   <div class="row-imp" id="impact"></div>
   <div class="rule"></div>
-  <div class="g-head" id="gantt-toggle"><span class="sec-lbl">SCHEDULE IMPACT</span><span class="sub">— planned vs inferred · pulldown</span><span class="caret" id="g-caret">▾ expand</span></div>
-  <div id="gantt-body" class="collapsed"></div>
+  <div class="g-head" id="gantt-toggle"><span class="sec-lbl">SCHEDULE IMPACT</span><span class="sub">— planned vs inferred · pulldown</span><span class="caret" id="g-caret">▴ collapse</span></div>
+  <div id="gantt-body"></div>
   <div class="foot">Illustrative · synthetic scenario · no proprietary data · integrated build v5</div>
 </section>
 
@@ -1477,7 +1477,8 @@ window.addEventListener("resize", mroBuild);
     var b=document.getElementById("gantt-body"), c=document.getElementById("g-caret"); if(!b)return;
     var collapsed=b.classList.contains("collapsed");
     if(open&&collapsed){ b.classList.remove("collapsed"); if(c)c.textContent="\u25b4 collapse"; }
-    else if(!open&&!collapsed){ b.classList.add("collapsed"); if(c)c.textContent="\u25be expand"; }
+    // no auto-collapse: gantt is open by default and stays open across tour steps.
+    // Manual toggling via #gantt-toggle click still works both directions.
   };
   window.mroEventCount=EVENTS.length;
   window.mroEventMeta=EVENTS.map(function(e){return {rank:e.rank,pill:e.pill,cert:e.cert};});
