@@ -544,7 +544,7 @@
     }
     .demo-stage { position: relative; width: 100%; overflow: hidden; }
     .demo-scaler { position: absolute; top: 0; left: 0; transform-origin: top left; }
-    .demo-scaler iframe { width: 1280px; height: 720px; border: 0; display: block; }
+    .demo-scaler iframe { width: 1280px; height: 1500px; border: 0; display: block; }
     .demo-poster {
       position: absolute;
       inset: 0;
@@ -1036,7 +1036,7 @@
       var scaler = frame.querySelector('.demo-scaler');
       var poster = frame.querySelector('.demo-poster');
       var btn    = poster.querySelector('.btn-primary');
-      var LW = 1280, LH = 720;
+      var LW = 1280, LH = 1500;
       function fit() {
         var s = stage.clientWidth / LW;
         stage.style.height = (LH * s) + 'px';
@@ -1051,6 +1051,46 @@
         ifr.src = 'mro_integrated_v5.html';
         ifr.title = 'Manufacturing Reality Orchestrator \u2014 interactive demo';
         ifr.setAttribute('allow', 'fullscreen');
+        ifr.setAttribute('scrolling', 'no');  // hard-disable scrollbar UI (legacy but universal)
+        // After load, measure the demo's actual content height (same-origin)
+        // and grow the frame to match, so nothing scrolls inside the iframe.
+        // Re-measures periodically for the first few seconds to catch late
+        // layout shifts (tour expanding the gantt, canvas sizing, etc.).
+        ifr.addEventListener('load', function () {
+          // Modern equivalent of scrolling=no: inject overflow:hidden into the
+          // iframe's own document. Belt and braces so no transient scrollbar
+          // surfaces if content briefly overshoots between measure ticks.
+          try {
+            var doc = ifr.contentDocument;
+            if (doc) {
+              var st = doc.createElement('style');
+              st.textContent = 'html,body{overflow:hidden !important;}';
+              (doc.head || doc.documentElement).appendChild(st);
+            }
+          } catch (e) { /* cross-origin: fall back to scrolling=no attr */ }
+
+          function measure() {
+            try {
+              var doc = ifr.contentDocument;
+              if (!doc || !doc.documentElement) return;
+              var h = Math.max(
+                doc.documentElement.scrollHeight,
+                doc.body ? doc.body.scrollHeight : 0
+              );
+              if (h && Math.abs(h - LH) > 4) {
+                LH = h;
+                ifr.style.height = h + 'px';
+                fit();
+              }
+            } catch (e) { /* cross-origin fallback: keep static LH */ }
+          }
+          measure();
+          var t0 = Date.now();
+          var iv = setInterval(function () {
+            measure();
+            if (Date.now() - t0 > 4000) clearInterval(iv);
+          }, 400);
+        });
         scaler.appendChild(ifr);
         frame.classList.add('loaded');
         fit();
